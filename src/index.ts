@@ -1,7 +1,18 @@
 import {Transpiler} from './transpiler';
-import {task, types} from 'hardhat/config';
+import {subtask, types} from 'hardhat/config';
+import {TASK_COMPILE_GET_COMPILATION_TASKS}
+  from 'hardhat/builtin-tasks/task-names';
+import {TASK_COMPILE_WARP, TASK_COMPILE_WARP_RUN_BINARY} from './task-names';
 
-task('transpile')
+subtask(
+    TASK_COMPILE_GET_COMPILATION_TASKS,
+    async (_, __, runSuper): Promise<string[]> => {
+      const otherTasks = await runSuper();
+      return [...otherTasks, TASK_COMPILE_WARP];
+    },
+);
+
+subtask(TASK_COMPILE_WARP_RUN_BINARY)
     .addParam('contract', 'Path to Solidity contract', undefined, types.string, false)
     .addParam('warpPath', 'Path to warp binary', undefined, types.string, false)
     .setAction(
@@ -19,6 +30,3 @@ task('transpile')
           return result;
         },
     );
-
-task('test')
-    .setAction(async () => console.log('Yeah this is a test'));
