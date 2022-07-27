@@ -4,9 +4,11 @@ import {
 import {subtask, types} from 'hardhat/config';
 import {glob} from 'hardhat/internal/util/glob';
 import path from 'path';
+
 import {
   TASK_COMPILE_WARP,
   TASK_COMPILE_WARP_RUN_BINARY,
+  TASK_COMPILE_WARP_GET_SOURCE_PATHS,
 } from './task-names';
 import {Transpiler} from './transpiler';
 
@@ -26,6 +28,18 @@ subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS, undefined,
       return solPaths.filter((x) => !cairoPaths.includes(x));
     },
 );
+
+subtask(TASK_COMPILE_WARP_GET_SOURCE_PATHS, undefined,
+    async (_, {config}): Promise<string[]> => {
+      const starknetContracts = await glob(
+          path.join(config.paths.root, 'starknet-contracts/**/*.sol'),
+      );
+      const contracts = await glob(path.join(config.paths.root, 'contracts/**/*.cairo.sol'));
+
+      return starknetContracts.concat(contracts);
+    },
+);
+
 subtask(TASK_COMPILE_WARP_RUN_BINARY)
     .addParam('contract', 'Path to Solidity contract', undefined, types.string, false)
     .addParam('warpPath', 'Path to warp binary', undefined, types.string, false)
