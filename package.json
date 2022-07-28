@@ -36,6 +36,7 @@
     "hardhat": "^2.0.0"
   },
   "dependencies": {
+    "@types/glob": "^7.2.0",
     "eslint": ">=5.16.0"
   }
 }
