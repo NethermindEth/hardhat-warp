@@ -66,6 +66,12 @@ subtask(TASK_COMPILE_WARP)
               TASK_COMPILE_WARP_GET_SOURCE_PATHS,
           );
 
-          console.log(sourcePathsWarp);
+          sourcePathsWarp.forEach(async (source) => await run(
+              TASK_COMPILE_WARP_RUN_BINARY,
+              {
+                contract: source,
+                warpPath: '/home/glitch/Github/warp/bin/warp',
+              },
+          ));
         },
     );
