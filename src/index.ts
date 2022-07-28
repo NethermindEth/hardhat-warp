@@ -20,7 +20,7 @@ subtask(
     },
 );
 
-subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS, undefined,
+subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS,
     async (_, {config}): Promise<string[]> => {
       const solPaths = await glob(path.join(config.paths.root, 'contracts/**/*.sol'));
       const cairoPaths = await glob(path.join(config.paths.root, 'contracts/**/*.cairo.sol'));
@@ -29,10 +29,10 @@ subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS, undefined,
     },
 );
 
-subtask(TASK_COMPILE_WARP_GET_SOURCE_PATHS, undefined,
+subtask(TASK_COMPILE_WARP_GET_SOURCE_PATHS,
     async (_, {config}): Promise<string[]> => {
       const starknetContracts = await glob(
-          path.join(config.paths.root, 'starknet-contracts/**/*.sol'),
+          path.join(config.paths.root, 'starknet_contracts/**/*.sol'),
       );
       const contracts = await glob(path.join(config.paths.root, 'contracts/**/*.cairo.sol'));
 
@@ -56,5 +56,16 @@ subtask(TASK_COMPILE_WARP_RUN_BINARY)
           const result = await transpiler.transpile(contract);
 
           return result;
+        },
+    );
+
+subtask(TASK_COMPILE_WARP)
+    .setAction(
+        async (_, {artifacts, config, run}) => {
+          const sourcePathsWarp: string[] = await run(
+              TASK_COMPILE_WARP_GET_SOURCE_PATHS,
+          );
+
+          console.log(sourcePathsWarp);
         },
     );
