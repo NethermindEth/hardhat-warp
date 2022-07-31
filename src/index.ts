@@ -8,10 +8,14 @@ import {glob} from 'hardhat/internal/util/glob';
 import path from 'path';
 
 import {
-  TASK_COMPILE_WARP, TASK_COMPILE_WARP_GET_SOURCE_PATHS, TASK_COMPILE_WARP_RUN_BINARY,
+  TASK_COMPILE_WARP,
+  TASK_COMPILE_WARP_GET_SOURCE_PATHS,
+  TASK_COMPILE_WARP_GET_WARP_PATH,
+  TASK_COMPILE_WARP_RUN_BINARY,
 } from './task-names';
 import {Transpiler} from './transpiler';
 import {HardhatConfig, HardhatUserConfig} from 'hardhat/types';
+import {WarpPluginError} from './utils';
 
 extendConfig(
     (config: HardhatConfig, userConfig: Readonly<HardhatUserConfig>) => {
@@ -79,6 +83,18 @@ subtask(TASK_COMPILE_WARP_RUN_BINARY)
         },
     );
 
+subtask(TASK_COMPILE_WARP_GET_WARP_PATH,
+    async (_, {config}): Promise<string> => {
+      if (config.paths.warp === 'UNDEFINED') {
+        throw new WarpPluginError(
+            'Unable to find warp binary. Please set warp binary path in hardhat config',
+        );
+      }
+
+      return config.paths.warp;
+    },
+);
+
 subtask(TASK_COMPILE_WARP)
     .setAction(
         async (_, {artifacts, config, run}) => {
@@ -86,11 +102,15 @@ subtask(TASK_COMPILE_WARP)
               TASK_COMPILE_WARP_GET_SOURCE_PATHS,
           );
 
+          const warpPath: string = await run(
+              TASK_COMPILE_WARP_GET_WARP_PATH,
+          );
+
           sourcePathsWarp.forEach(async (source) => await run(
               TASK_COMPILE_WARP_RUN_BINARY,
               {
                 contract: source,
-                warpPath: config.paths.warp,
+                warpPath: warpPath,
               },
           ));
         },
