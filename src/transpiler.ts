@@ -5,7 +5,7 @@ export class Transpiler {
 
   public async transpile(inputPath: string) {
     const output : string = await new Promise((resolve, reject) => {
-      console.log(`${this._pathToWarp} transpile ${inputPath}`);
+      console.log(`Compiling ${inputPath}`);
       const process = exec(
           `${this._pathToWarp} transpile ${inputPath}`,
           (error, stdout) => {

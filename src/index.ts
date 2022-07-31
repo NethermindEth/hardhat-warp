@@ -11,11 +11,13 @@ import {
   TASK_COMPILE_WARP,
   TASK_COMPILE_WARP_GET_SOURCE_PATHS,
   TASK_COMPILE_WARP_GET_WARP_PATH,
+  TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT,
+  TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT,
   TASK_COMPILE_WARP_RUN_BINARY,
 } from './task-names';
 import {Transpiler} from './transpiler';
 import {HardhatConfig, HardhatUserConfig} from 'hardhat/types';
-import {WarpPluginError} from './utils';
+import {WarpPluginError, colorLogger} from './utils';
 
 extendConfig(
     (config: HardhatConfig, userConfig: Readonly<HardhatUserConfig>) => {
@@ -40,7 +42,19 @@ subtask(
     TASK_COMPILE_GET_COMPILATION_TASKS,
     async (_, __, runSuper): Promise<string[]> => {
       const otherTasks = await runSuper();
-      return [...otherTasks, TASK_COMPILE_WARP];
+      return [TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT, ...otherTasks, TASK_COMPILE_WARP];
+    },
+);
+
+subtask(TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT,
+    async (): Promise<void> => {
+      colorLogger('\nCompiling Ethereum contracts: \n');
+    },
+);
+
+subtask(TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT,
+    async (): Promise<void> => {
+      colorLogger('\nCompiling Starknet contracts: \n');
     },
 );
 
@@ -98,12 +112,14 @@ subtask(TASK_COMPILE_WARP_GET_WARP_PATH,
 subtask(TASK_COMPILE_WARP)
     .setAction(
         async (_, {artifacts, config, run}) => {
-          const sourcePathsWarp: string[] = await run(
-              TASK_COMPILE_WARP_GET_SOURCE_PATHS,
-          );
+          await run(TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT);
 
           const warpPath: string = await run(
               TASK_COMPILE_WARP_GET_WARP_PATH,
+          );
+
+          const sourcePathsWarp: string[] = await run(
+              TASK_COMPILE_WARP_GET_SOURCE_PATHS,
           );
 
           sourcePathsWarp.forEach(async (source) => await run(
