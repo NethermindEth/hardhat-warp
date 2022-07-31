@@ -1,16 +1,36 @@
+import './type-extensions';
+
 import {
   TASK_COMPILE_GET_COMPILATION_TASKS, TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS,
 } from 'hardhat/builtin-tasks/task-names';
-import {subtask, types} from 'hardhat/config';
+import {extendConfig, subtask, types} from 'hardhat/config';
 import {glob} from 'hardhat/internal/util/glob';
 import path from 'path';
 
 import {
-  TASK_COMPILE_WARP,
-  TASK_COMPILE_WARP_RUN_BINARY,
-  TASK_COMPILE_WARP_GET_SOURCE_PATHS,
+  TASK_COMPILE_WARP, TASK_COMPILE_WARP_GET_SOURCE_PATHS, TASK_COMPILE_WARP_RUN_BINARY,
 } from './task-names';
 import {Transpiler} from './transpiler';
+import {HardhatConfig, HardhatUserConfig} from 'hardhat/types';
+
+extendConfig(
+    (config: HardhatConfig, userConfig: Readonly<HardhatUserConfig>) => {
+      const userWarpPath = userConfig.paths?.warp;
+
+      let newPath: string;
+      if (userWarpPath === undefined) {
+        newPath = 'UNDEFINED';
+      } else {
+        if (path.isAbsolute(userWarpPath)) {
+          newPath = userWarpPath;
+        } else {
+          newPath = path.normalize(path.join(config.paths.root, userWarpPath));
+        }
+      }
+
+      config.paths.warp = newPath;
+    },
+);
 
 subtask(
     TASK_COMPILE_GET_COMPILATION_TASKS,
@@ -70,7 +90,7 @@ subtask(TASK_COMPILE_WARP)
               TASK_COMPILE_WARP_RUN_BINARY,
               {
                 contract: source,
-                warpPath: '/home/glitch/Github/warp/bin/warp',
+                warpPath: config.paths.warp,
               },
           ));
         },
