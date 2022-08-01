@@ -3,7 +3,7 @@ import './type-extensions';
 import {
   TASK_COMPILE_GET_COMPILATION_TASKS, TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS,
 } from 'hardhat/builtin-tasks/task-names';
-import {extendConfig, subtask, types} from 'hardhat/config';
+import {extendConfig, subtask, task, types} from 'hardhat/config';
 import {glob} from 'hardhat/internal/util/glob';
 import path from 'path';
 
@@ -14,6 +14,8 @@ import {
   TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT,
   TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT,
   TASK_COMPILE_WARP_RUN_BINARY,
+  TASK_DEPLOY_WARP,
+  TASK_DEPLOY_WARP_RUN_BINARY,
 } from './task-names';
 import {Transpiler} from './transpiler';
 import {HardhatConfig, HardhatUserConfig} from 'hardhat/types';
@@ -111,7 +113,7 @@ subtask(TASK_COMPILE_WARP_GET_WARP_PATH,
 
 subtask(TASK_COMPILE_WARP)
     .setAction(
-        async (_, {artifacts, config, run}) => {
+        async (_, {run}) => {
           await run(TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT);
 
           const warpPath: string = await run(
@@ -129,5 +131,42 @@ subtask(TASK_COMPILE_WARP)
                 warpPath: warpPath,
               },
           ));
+        },
+    );
+
+subtask(TASK_DEPLOY_WARP_RUN_BINARY)
+    .addParam('contractPath', 'Path of contract to deploy', undefined, types.string, false)
+    .addParam('warpPath', 'Path to warp binary', undefined, types.string, false)
+    .addParam('inputs', 'Constructor arguments for contract being deployed', undefined, types.string, false)
+    .setAction(
+        async (
+            {
+              contractPath,
+              warpPath,
+              inputs,
+            }: {
+            contractPath: string,
+            warpPath: string,
+            inputs: string,
+          },
+        ): Promise<string> => {
+          const transpiler = new Transpiler(warpPath);
+
+          const result = await transpiler.deploy(contractPath, inputs);
+
+          return result;
+        },
+    );
+
+task(TASK_DEPLOY_WARP)
+    .setAction(
+        async (_, {run}) => {
+          const warpPath: string = await run(
+              TASK_COMPILE_WARP_GET_WARP_PATH,
+          );
+
+          const sourcePathsWarp: string[] = await run(
+              TASK_COMPILE_WARP_GET_SOURCE_PATHS,
+          );
         },
     );
