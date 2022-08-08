@@ -15,7 +15,7 @@ import {
   TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT,
   TASK_COMPILE_WARP_RUN_BINARY,
   TASK_DEPLOY_WARP,
-  TASK_DEPLOY_WARP_RUN_BINARY,
+  TASK_DEPLOY_WARP_GET_CAIRO_PATH,
 } from './task-names';
 import {Transpiler} from './transpiler';
 import {HardhatConfig, HardhatUserConfig} from 'hardhat/types';
@@ -63,7 +63,7 @@ subtask(TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT,
 subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS,
     async (_, {config}): Promise<string[]> => {
       const solPaths = await glob(path.join(config.paths.root, 'contracts/**/*.sol'));
-      const cairoPaths = await glob(path.join(config.paths.root, 'contracts/**/*.cairo.sol'));
+      const cairoPaths = await glob(path.join(config.paths.root, 'contracts/**/*_cairo.sol'));
 
       return solPaths.filter((x) => !cairoPaths.includes(x));
     },
@@ -74,9 +74,9 @@ subtask(TASK_COMPILE_WARP_GET_SOURCE_PATHS,
       const starknetContracts = await glob(
           path.join(config.paths.root, 'starknet_contracts/**/*.sol'),
       );
-      const contracts = await glob(path.join(config.paths.root, 'contracts/**/*.cairo.sol'));
+      const contracts = await glob(path.join(config.paths.root, 'contracts/**/*_cairo.sol'));
 
-      return starknetContracts.concat(contracts);
+      return starknetContracts.concat(contracts).map((contract) => path.relative(config.paths.root, contract));
     },
 );
 
@@ -134,39 +134,67 @@ subtask(TASK_COMPILE_WARP)
         },
     );
 
-subtask(TASK_DEPLOY_WARP_RUN_BINARY)
-    .addParam('contractPath', 'Path of contract to deploy', undefined, types.string, false)
-    .addParam('warpPath', 'Path to warp binary', undefined, types.string, false)
-    .addParam('inputs', 'Constructor arguments for contract being deployed', undefined, types.string, false)
+subtask(TASK_DEPLOY_WARP_GET_CAIRO_PATH)
+    .addParam('solidityPath',
+        'Path of solidity contract to get the corresponding Cairo for',
+        undefined,
+        types.string,
+        false)
+    .addParam('contractName',
+        'Name of the contract to deploy', undefined, types.string, false)
     .setAction(
         async (
-            {
-              contractPath,
-              warpPath,
-              inputs,
-            }: {
-            contractPath: string,
-            warpPath: string,
-            inputs: string,
-          },
-        ): Promise<string> => {
-          const transpiler = new Transpiler(warpPath);
-
-          const result = await transpiler.deploy(contractPath, inputs);
-
-          return result;
+            {solidityPath, contractName} : {solidityPath: string, contractName: string}, {config},
+        ) => {
+          // const contractPath = path.normalize(path.join(config.paths.root, solidityPath));
+          const solPath = path.resolve(solidityPath);
+          const cairoPath = path.relative(config.paths.root, solPath).slice(0, -4).replace('_', '__');
+          // TODO: Check if this file exists
+          const contractPath = cairoPath.concat(`__WC__${contractName}.cairo`);
+          // TODO: Check if this contract exists
+          return path.join('warp_output', contractPath);
         },
     );
 
 task(TASK_DEPLOY_WARP)
+    .addParam('contractPath', 'Path to solidity contract to be deployed to Starknet', undefined, types.string, false)
+    .addParam('contractName',
+        'Name of the contract to deploy', undefined, types.string, false)
+    .addParam(
+        'inputs',
+        'Space separated constructor inputs for the solidity contract being deployed to Starknet',
+        '',
+        types.string, true)
+    .addFlag('testnet', 'Flag to change deploy target to Starknet testnet')
+    .addFlag('noWallet', 'Deploy without using wallet')
     .setAction(
-        async (_, {run}) => {
-          const warpPath: string = await run(
-              TASK_COMPILE_WARP_GET_WARP_PATH,
+        async (
+            {
+              contractPath,
+              contractName,
+              inputs,
+              testnet,
+              noWallet,
+            } : {
+            contractPath: string,
+            contractName: string,
+            inputs: string,
+            testnet: boolean,
+            noWallet: boolean,
+          },
+            {config, run}) => {
+          const cairoPath = await run(
+              TASK_DEPLOY_WARP_GET_CAIRO_PATH,
+              {solidityPath: contractPath, contractName: contractName},
           );
+          const transpiler = new Transpiler(config.paths.warp);
 
-          const sourcePathsWarp: string[] = await run(
-              TASK_COMPILE_WARP_GET_SOURCE_PATHS,
-          );
+          const result = await transpiler.deploy(
+              cairoPath,
+              inputs,
+              testnet,
+            (noWallet) ? 'noWallet' : config.starknet.wallet);
+
+          return result;
         },
     );

@@ -21,10 +21,14 @@ export class Transpiler {
     return output;
   }
 
-  public async deploy(contractPath: string, parameters: string) {
+  public async deploy(contractPath: string, parameters: string, testnet: boolean, wallet: string) {
+    let command = `${this._pathToWarp} deploy ${contractPath} --inputs ${parameters}`;
+    command = command.concat(` --network ${testnet ? 'alpha-goerli' : 'alpha-mainnet'}`);
+    command = command.concat((wallet === 'noWallet') ? ' --no_wallet' : ` --wallet ${wallet}`);
+    console.log(command);
     const output: string = await new Promise((resolve, reject) => {
       const process = exec(
-          `${this._pathToWarp} deploy ${contractPath} --inputs ${parameters}`,
+          command,
           (error, stdout) => {
             if (error !== null) return reject(error);
             resolve(stdout);

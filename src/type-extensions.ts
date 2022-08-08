@@ -8,4 +8,20 @@ declare module 'hardhat/types/config' {
     export interface ProjectPathsConfig {
         warp: string;
     }
+
+    export interface StarknetConfig {
+        wallet: string;
+    }
+
+    export interface StarknetUserConfig {
+        wallet?: string;
+    }
+
+    export interface HardhatConfig {
+        starknet: StarknetConfig;
+    }
+
+    export interface HardhatUserConfig {
+        starknet?: StarknetUserConfig;
+    }
 }
