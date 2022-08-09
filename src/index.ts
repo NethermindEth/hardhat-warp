@@ -19,7 +19,8 @@ import {
 } from './task-names';
 import {Transpiler} from './transpiler';
 import {HardhatConfig, HardhatUserConfig} from 'hardhat/types';
-import {WarpPluginError, colorLogger} from './utils';
+import {WarpPluginError, colorLogger, saveContract} from './utils';
+import {Contract} from './Contract';
 
 extendConfig(
     (config: HardhatConfig, userConfig: Readonly<HardhatUserConfig>) => {
@@ -92,9 +93,13 @@ subtask(TASK_COMPILE_WARP_RUN_BINARY)
       warpPath: string;
     }): Promise<string> => {
           const transpiler = new Transpiler(warpPath);
+          const contractNames = await transpiler.getContractNames(contract);
+          contractNames.map((contractName) => {
+            const contractObj = new Contract(contractName, contract);
+            saveContract(contractObj);
+          });
 
           const result = await transpiler.transpile(contract);
-
           return result;
         },
     );
