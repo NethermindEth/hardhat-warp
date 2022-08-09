@@ -91,16 +91,14 @@ subtask(TASK_COMPILE_WARP_RUN_BINARY)
         }: {
       contract: string;
       warpPath: string;
-    }): Promise<string> => {
+    }): Promise<void> => {
           const transpiler = new Transpiler(warpPath);
+          transpiler.transpile(contract);
           const contractNames = await transpiler.getContractNames(contract);
           contractNames.map((contractName) => {
             const contractObj = new Contract(contractName, contract);
             saveContract(contractObj);
           });
-
-          const result = await transpiler.transpile(contract);
-          return result;
         },
     );
 

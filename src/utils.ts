@@ -20,5 +20,5 @@ export function saveContract(contract: Contract) {
   }
   contractsMap.set(contract.getName(), contract);
   const data = Object.fromEntries(contractsMap);
-  fs.writeFileSync('contracts.json', JSON.stringify(data));
+  fs.writeFileSync('warp_output/contracts.json', JSON.stringify(data));
 }
