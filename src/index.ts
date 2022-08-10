@@ -144,14 +144,6 @@ subtask(TASK_DEPLOY_WARP_GET_CAIRO_PATH)
         async (
             {contractName} : {contractName: string}, {config},
         ) => {
-          // // const contractPath = path.normalize(path.join(config.paths.root, solidityPath));
-          // const solPath = path.resolve(solidityPath);
-          // const cairoPath = path.relative(config.paths.root, solPath).slice(0, -4).replace('_', '__');
-          // // TODO: Check if this file exists
-          // const contractPath = cairoPath.concat(`__WC__${contractName}.cairo`);
-          // // TODO: Check if this contract exists
-          // return path.join('warp_output', contractPath);
-
           const contract = getContract(contractName);
           // TODO: catch exception
           return path.join('warp_output', contract.getCairoFile());
