@@ -14,11 +14,15 @@ export function colorLogger(str: any) {
 }
 
 export function saveContract(contract: Contract) {
-  const contractsMap: Map<string, Contract> = new Map<string, Contract>();
+  const contracts = [contract];
   if (fs.existsSync('warp_output/contracts.json')) {
-    // const readData = fs.readFileSync('contracts.json', 'utf-8');
+    const readData = fs.readFileSync('warp_output/contracts.json', 'utf-8');
+    const existingData = JSON.parse(readData) as Contract[];
+    existingData.forEach((ctr) => {
+      const temp = new Contract('', '');
+      Object.assign(temp, ctr);
+      if (temp.getName() !== contract.getName()) contracts.push(temp);
+    });
   }
-  contractsMap.set(contract.getName(), contract);
-  const data = Object.fromEntries(contractsMap);
-  fs.writeFileSync('warp_output/contracts.json', JSON.stringify(data));
+  fs.writeFileSync('warp_output/contracts.json', JSON.stringify(contracts));
 }
