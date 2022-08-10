@@ -26,3 +26,26 @@ export function saveContract(contract: Contract) {
   }
   fs.writeFileSync('warp_output/contracts.json', JSON.stringify(contracts));
 }
+
+export function getContract(contractName: string) {
+  if (!fs.existsSync('warp_output/contracts.json')) {
+    throw new WarpPluginError('No Starknet contracts found. Please run hardhat compile');
+  }
+
+  const readData = fs.readFileSync('warp_output/contracts.json', 'utf-8');
+  const existingData = JSON.parse(readData) as Contract[];
+  const contracts = existingData.map((ctr) => {
+    const temp = new Contract('', '');
+    Object.assign(temp, ctr);
+    return temp;
+  });
+  const res = contracts.find((ctr) => {
+    return ctr.getName() === contractName;
+  });
+
+  if (res === undefined) {
+    throw new WarpPluginError('Given object was not found in Starknet contracts.');
+  }
+
+  return res;
+}
