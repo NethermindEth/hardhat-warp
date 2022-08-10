@@ -19,7 +19,7 @@ import {
 } from './task-names';
 import {Transpiler} from './transpiler';
 import {HardhatConfig, HardhatUserConfig} from 'hardhat/types';
-import {WarpPluginError, colorLogger, saveContract} from './utils';
+import {WarpPluginError, colorLogger, saveContract, getContract} from './utils';
 import {Contract} from './Contract';
 
 extendConfig(
@@ -138,29 +138,27 @@ subtask(TASK_COMPILE_WARP)
     );
 
 subtask(TASK_DEPLOY_WARP_GET_CAIRO_PATH)
-    .addParam('solidityPath',
-        'Path of solidity contract to get the corresponding Cairo for',
-        undefined,
-        types.string,
-        false)
     .addParam('contractName',
         'Name of the contract to deploy', undefined, types.string, false)
     .setAction(
         async (
-            {solidityPath, contractName} : {solidityPath: string, contractName: string}, {config},
+            {contractName} : {contractName: string}, {config},
         ) => {
-          // const contractPath = path.normalize(path.join(config.paths.root, solidityPath));
-          const solPath = path.resolve(solidityPath);
-          const cairoPath = path.relative(config.paths.root, solPath).slice(0, -4).replace('_', '__');
-          // TODO: Check if this file exists
-          const contractPath = cairoPath.concat(`__WC__${contractName}.cairo`);
-          // TODO: Check if this contract exists
-          return path.join('warp_output', contractPath);
+          // // const contractPath = path.normalize(path.join(config.paths.root, solidityPath));
+          // const solPath = path.resolve(solidityPath);
+          // const cairoPath = path.relative(config.paths.root, solPath).slice(0, -4).replace('_', '__');
+          // // TODO: Check if this file exists
+          // const contractPath = cairoPath.concat(`__WC__${contractName}.cairo`);
+          // // TODO: Check if this contract exists
+          // return path.join('warp_output', contractPath);
+
+          const contract = getContract(contractName);
+          // TODO: catch exception
+          return path.join('warp_output', contract.getCairoFile());
         },
     );
 
 task(TASK_DEPLOY_WARP)
-    .addParam('contractPath', 'Path to solidity contract to be deployed to Starknet', undefined, types.string, false)
     .addParam('contractName',
         'Name of the contract to deploy', undefined, types.string, false)
     .addParam(
@@ -173,13 +171,11 @@ task(TASK_DEPLOY_WARP)
     .setAction(
         async (
             {
-              contractPath,
               contractName,
               inputs,
               testnet,
               noWallet,
             } : {
-            contractPath: string,
             contractName: string,
             inputs: string,
             testnet: boolean,
@@ -188,7 +184,7 @@ task(TASK_DEPLOY_WARP)
             {config, run}) => {
           const cairoPath = await run(
               TASK_DEPLOY_WARP_GET_CAIRO_PATH,
-              {solidityPath: contractPath, contractName: contractName},
+              {contractName: contractName},
           );
           const transpiler = new Transpiler(config.paths.warp);
 
