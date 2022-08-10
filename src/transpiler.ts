@@ -26,7 +26,7 @@ export class Transpiler {
     let command = `${this._pathToWarp} deploy ${contractPath} --inputs ${parameters}`;
     command = command.concat(` --network ${testnet ? 'alpha-goerli' : 'alpha-mainnet'}`);
     command = command.concat((wallet === 'noWallet') ? ' --no_wallet' : ` --wallet ${wallet}`);
-    console.log(command);
+    // console.log(command);
     const output: string = await new Promise((resolve, reject) => {
       const process = exec(
           command,

@@ -194,6 +194,19 @@ task(TASK_DEPLOY_WARP)
               testnet,
             (noWallet) ? 'noWallet' : config.starknet.wallet);
 
+          const contAd = result.match('Contract address: (0x[0-9a-z]+)');
+          const TxHash = result.match('Transaction hash: (0x[0-9a-z]+)');
+
+          if (contAd === null || TxHash === null) {
+            throw new WarpPluginError('Failed to save contract deploy details');
+            return result;
+          }
+
+          const Contract = getContract(contractName);
+          Contract.setDeployTxHash(TxHash[1]);
+          Contract.setDeployedAddress(contAd[1]);
+          saveContract(Contract);
+          console.log('Deployment details of the contract have been saved');
           return result;
         },
     );
