@@ -146,7 +146,7 @@ subtask(TASK_DEPLOY_WARP_GET_CAIRO_PATH)
         ) => {
           const contract = getContract(contractName);
           // TODO: catch exception
-          return path.join('warp_output', contract.getCairoFile());
+          return contract.getCairoFile();
         },
     );
 
