@@ -20,7 +20,7 @@ import {
 import {Transpiler} from './transpiler';
 import {HardhatConfig, HardhatUserConfig} from 'hardhat/types';
 import {WarpPluginError, colorLogger, saveContract, getContract} from './utils';
-import {Contract} from './Contract';
+import {ContractInfo} from './Contract';
 
 extendConfig(
     (config: HardhatConfig, userConfig: Readonly<HardhatUserConfig>) => {
@@ -96,7 +96,7 @@ subtask(TASK_COMPILE_WARP_RUN_BINARY)
           transpiler.transpile(contract);
           const contractNames = await transpiler.getContractNames(contract);
           contractNames.map((contractName) => {
-            const contractObj = new Contract(contractName, contract);
+            const contractObj = new ContractInfo(contractName, contract);
             saveContract(contractObj);
           });
         },
@@ -142,7 +142,7 @@ subtask(TASK_DEPLOY_WARP_GET_CAIRO_PATH)
         'Name of the contract to deploy', undefined, types.string, false)
     .setAction(
         async (
-            {contractName} : {contractName: string}, {config},
+            {contractName} : {contractName: string},
         ) => {
           const contract = getContract(contractName);
           // TODO: catch exception
