@@ -26,6 +26,8 @@ export class Contract {
   }
 
   getCairoFile() {
-    return this.solidityFile.slice(0, -4).replace('_', '__').concat(`__WC__${this.name}.cairo`);
+    const cairoFile = this.solidityFile.slice(0, -4).replace('_', '__').concat(`__WC__${this.name}.cairo`);
+    return path.join('warp_output', cairoFile);
+  }
   }
 }
