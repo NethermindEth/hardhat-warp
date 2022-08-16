@@ -5,22 +5,19 @@ import {
 } from 'hardhat/builtin-tasks/task-names';
 import {extendConfig, subtask, task, types} from 'hardhat/config';
 import {glob} from 'hardhat/internal/util/glob';
+import {HardhatConfig, HardhatUserConfig} from 'hardhat/types';
 import path from 'path';
+import {runTypeChain} from 'typechain';
 
+import {ContractInfo} from './Contract';
 import {
-  TASK_COMPILE_WARP,
-  TASK_COMPILE_WARP_GET_SOURCE_PATHS,
-  TASK_COMPILE_WARP_GET_WARP_PATH,
-  TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT,
-  TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT,
-  TASK_COMPILE_WARP_RUN_BINARY,
-  TASK_DEPLOY_WARP,
+  TASK_COMPILE_WARP, TASK_COMPILE_WARP_GET_SOURCE_PATHS, TASK_COMPILE_WARP_GET_WARP_PATH,
+  TASK_COMPILE_WARP_MAKE_TYPECHAIN, TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT,
+  TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT, TASK_COMPILE_WARP_RUN_BINARY, TASK_DEPLOY_WARP,
   TASK_DEPLOY_WARP_GET_CAIRO_PATH,
 } from './task-names';
 import {Transpiler} from './transpiler';
-import {HardhatConfig, HardhatUserConfig} from 'hardhat/types';
-import {WarpPluginError, colorLogger, saveContract, getContract} from './utils';
-import {ContractInfo} from './Contract';
+import {colorLogger, getContract, saveContract, WarpPluginError} from './utils';
 
 extendConfig(
     (config: HardhatConfig, userConfig: Readonly<HardhatUserConfig>) => {
@@ -45,7 +42,12 @@ subtask(
     TASK_COMPILE_GET_COMPILATION_TASKS,
     async (_, __, runSuper): Promise<string[]> => {
       const otherTasks = await runSuper();
-      return [TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT, ...otherTasks, TASK_COMPILE_WARP];
+      return [
+        TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT,
+        ...otherTasks,
+        TASK_COMPILE_WARP,
+        TASK_COMPILE_WARP_MAKE_TYPECHAIN,
+      ];
     },
 );
 
@@ -111,6 +113,22 @@ subtask(TASK_COMPILE_WARP_GET_WARP_PATH,
       }
 
       return config.paths.warp;
+    },
+);
+
+subtask(TASK_COMPILE_WARP_MAKE_TYPECHAIN,
+    async (_, {config}) => {
+      const abiPaths = await glob(
+          path.join(config.paths.root, 'warp_output/**/*_compiled.json'),
+      );
+      const cwd = process.cwd();
+      runTypeChain({
+        cwd: cwd,
+        filesToProcess: abiPaths,
+        allFiles: abiPaths,
+        outDir: 'typechain-types',
+        target: 'starknet',
+      });
     },
 );
 
