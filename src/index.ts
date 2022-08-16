@@ -19,6 +19,8 @@ import {
 import {Transpiler} from './transpiler';
 import {colorLogger, getContract, saveContract, WarpPluginError} from './utils';
 
+export {getStarknetContractFactory} from './testing';
+
 extendConfig(
     (config: HardhatConfig, userConfig: Readonly<HardhatUserConfig>) => {
       const userWarpPath = userConfig.paths?.warp;
