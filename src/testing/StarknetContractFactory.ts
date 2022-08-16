@@ -24,7 +24,11 @@ export class StarknetContractFactory {
   }
 
   public async deploy(...args: any) {
-    return this.starknetFactory.deploy([args]);
+    if (args.length === 0) {
+      return this.starknetFactory.deploy();
+    } else {
+      return this.starknetFactory.deploy([args]);
+    }
   }
 }
 
