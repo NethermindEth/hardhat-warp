@@ -1,5 +1,6 @@
 import './type-extensions';
-
+const fs = require('fs');
+const {createHash} = require('crypto');
 import {
   TASK_COMPILE_GET_COMPILATION_TASKS, TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS,
 } from 'hardhat/builtin-tasks/task-names';
@@ -10,8 +11,9 @@ import path from 'path';
 import {runTypeChain} from 'typechain';
 
 import {ContractInfo} from './Contract';
+import {HashInfo} from './Hash';
 import {
-  TASK_COMPILE_WARP, TASK_COMPILE_WARP_GET_SOURCE_PATHS, TASK_COMPILE_WARP_GET_WARP_PATH,
+  TASK_COMPILE_WARP, TASK_COMPILE_WARP_GET_HASH, TASK_COMPILE_WARP_GET_SOURCE_PATHS, TASK_COMPILE_WARP_GET_WARP_PATH,
   TASK_COMPILE_WARP_MAKE_TYPECHAIN, TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT,
   TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT, TASK_COMPILE_WARP_RUN_BINARY, TASK_DEPLOY_WARP,
   TASK_DEPLOY_WARP_GET_CAIRO_PATH,
@@ -85,6 +87,41 @@ subtask(TASK_COMPILE_WARP_GET_SOURCE_PATHS,
     },
 );
 
+subtask(TASK_COMPILE_WARP_GET_HASH)
+    .addParam('contract', 'Path to Solidity contract', undefined, types.string, false)
+    .setAction(
+        async ({
+          contract,
+        }: {
+      contract: string;
+      warpPath: string;
+    }): Promise<boolean> => {
+          const readContract = fs.readFileSync(contract, 'utf-8');
+          const hash = createHash('sha256').update(readContract).digest('hex');
+          if (!fs.existsSync('warp_output/hash.json')) {
+            const hashObj = new HashInfo(contract, hash);
+            fs.writeFileSync('warp_output/hash.json', JSON.stringify(hashObj));
+            return true;
+          }
+          const readData = fs.readFileSync('warp_output/hash.json', 'utf-8');
+          const existingData = JSON.parse(readData) as HashInfo[];
+          existingData.forEach((ctr) => {
+            if (ctr.getSolidityFile() == contract) {
+              if (ctr.getHash() == hash) {
+                return false;
+              } else {
+                ctr.setHash(hash);
+                return true;
+              }
+            }
+          });
+          const hashObj = new HashInfo(contract, hash);
+          existingData.push(hashObj);
+          fs.writeFileSync('warp_output/hash.json', JSON.stringify(existingData));
+          return true;
+        },
+    );
+
 subtask(TASK_COMPILE_WARP_RUN_BINARY)
     .addParam('contract', 'Path to Solidity contract', undefined, types.string, false)
     .addParam('warpPath', 'Path to warp binary', undefined, types.string, false)
@@ -147,13 +184,31 @@ subtask(TASK_COMPILE_WARP)
               TASK_COMPILE_WARP_GET_SOURCE_PATHS,
           );
 
+          sourcePathsWarp.forEach(async (source) => {
+            const needtoCompile: boolean = await run(
+                TASK_COMPILE_WARP_GET_HASH,
+                {
+                  contract: source,
+                },
+            );
+            if (needtoCompile) {
+              await run(
+                  TASK_COMPILE_WARP_RUN_BINARY,
+                  {
+                    contract: source,
+                    warpPath: warpPath,
+                  },
+              );
+            }
+          });
+          /*
           sourcePathsWarp.forEach(async (source) => await run(
               TASK_COMPILE_WARP_RUN_BINARY,
               {
                 contract: source,
                 warpPath: warpPath,
               },
-          ));
+          ));*/
         },
     );
 
