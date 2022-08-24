@@ -1,5 +1,5 @@
 import './type-extensions';
-const fs = require('fs');
+import * as fs from 'fs';
 const {createHash} = require('crypto');
 import {
   TASK_COMPILE_GET_COMPILATION_TASKS, TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS,
@@ -98,26 +98,22 @@ subtask(TASK_COMPILE_WARP_GET_HASH)
     }): Promise<boolean> => {
           const readContract = fs.readFileSync(contract, 'utf-8');
           const hash = createHash('sha256').update(readContract).digest('hex');
-          if (!fs.existsSync('warp_output/hash.json')) {
-            const hashObj = new HashInfo(contract, hash);
-            fs.writeFileSync('warp_output/hash.json', JSON.stringify(hashObj));
-            return true;
-          }
-          const readData = fs.readFileSync('warp_output/hash.json', 'utf-8');
-          const existingData = JSON.parse(readData) as HashInfo[];
-          existingData.forEach((ctr) => {
-            if (ctr.getSolidityFile() == contract) {
-              if (ctr.getHash() == hash) {
+          const hashObj = new HashInfo(contract, hash);
+          const hashes = [hashObj];
+          if (fs.existsSync('warp_output/hash.json')) {
+            const readData = fs.readFileSync('warp_output/hash.json', 'utf-8');
+            const existingData = JSON.parse(readData) as HashInfo[];
+            existingData.forEach((ctr) => {
+              const temp = new HashInfo('', '');
+              Object.assign(temp, ctr);
+              if (temp.getHash() == hashObj.getHash()) {
                 return false;
               } else {
-                ctr.setHash(hash);
-                return true;
+                hashes.push(temp);
               }
-            }
-          });
-          const hashObj = new HashInfo(contract, hash);
-          existingData.push(hashObj);
-          fs.writeFileSync('warp_output/hash.json', JSON.stringify(existingData));
+            });
+          }
+          fs.writeFileSync('warp_output/hash.json', JSON.stringify(hashes));
           return true;
         },
     );
@@ -208,7 +204,8 @@ subtask(TASK_COMPILE_WARP)
                 contract: source,
                 warpPath: warpPath,
               },
-          ));*/
+          ));
+          */
         },
     );
 
