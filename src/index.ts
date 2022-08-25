@@ -1,5 +1,6 @@
 import './type-extensions';
-
+import * as fs from 'fs';
+import {createHash} from 'crypto';
 import {
   TASK_COMPILE_GET_COMPILATION_TASKS, TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS,
 } from 'hardhat/builtin-tasks/task-names';
@@ -10,14 +11,15 @@ import path from 'path';
 import {runTypeChain} from 'typechain';
 
 import {ContractInfo} from './Contract';
+import {HashInfo} from './Hash';
 import {
-  TASK_COMPILE_WARP, TASK_COMPILE_WARP_GET_SOURCE_PATHS, TASK_COMPILE_WARP_GET_WARP_PATH,
+  TASK_COMPILE_WARP, TASK_COMPILE_WARP_GET_HASH, TASK_COMPILE_WARP_GET_SOURCE_PATHS, TASK_COMPILE_WARP_GET_WARP_PATH,
   TASK_COMPILE_WARP_MAKE_TYPECHAIN, TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT,
   TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT, TASK_COMPILE_WARP_RUN_BINARY, TASK_DEPLOY_WARP,
   TASK_DEPLOY_WARP_GET_CAIRO_PATH,
 } from './task-names';
 import {Transpiler} from './transpiler';
-import {colorLogger, getContract, saveContract, WarpPluginError} from './utils';
+import {checkHash, colorLogger, getContract, saveContract, WarpPluginError} from './utils';
 
 export {getStarknetContractFactory} from './testing';
 
@@ -85,6 +87,22 @@ subtask(TASK_COMPILE_WARP_GET_SOURCE_PATHS,
     },
 );
 
+subtask(TASK_COMPILE_WARP_GET_HASH)
+    .addParam('contract', 'Path to Solidity contract', undefined, types.string, false)
+    .setAction(
+        async ({
+          contract,
+        }: {
+      contract: string;
+    }): Promise<boolean> => {
+          const readContract = fs.readFileSync(contract, 'utf-8');
+          const hash = createHash('sha256').update(readContract).digest('hex');
+          const hashObj = new HashInfo(contract, hash);
+          const needToCompile = checkHash(hashObj);
+          return needToCompile;
+        },
+    );
+
 subtask(TASK_COMPILE_WARP_RUN_BINARY)
     .addParam('contract', 'Path to Solidity contract', undefined, types.string, false)
     .addParam('warpPath', 'Path to warp binary', undefined, types.string, false)
@@ -147,13 +165,26 @@ subtask(TASK_COMPILE_WARP)
               TASK_COMPILE_WARP_GET_SOURCE_PATHS,
           );
 
-          sourcePathsWarp.forEach(async (source) => await run(
-              TASK_COMPILE_WARP_RUN_BINARY,
-              {
-                contract: source,
-                warpPath: warpPath,
-              },
-          ));
+          const results = await Promise.all(sourcePathsWarp.map(async (source) => {
+            return await run(
+                TASK_COMPILE_WARP_GET_HASH,
+                {
+                  contract: source,
+                },
+            );
+          }));
+
+          sourcePathsWarp.forEach(async (source, i) => {
+            if (results[i]) {
+              await run(
+                  TASK_COMPILE_WARP_RUN_BINARY,
+                  {
+                    contract: source,
+                    warpPath: warpPath,
+                  },
+              );
+            }
+          });
         },
     );
 
