@@ -1,8 +1,27 @@
 import {ContractInfo} from '../Contract';
 import {getContract} from '../utils';
-import {ContractFactory, defaultProvider, json, Provider} from 'starknet';
+import {AsyncContractFunction, Contract, ContractFactory, defaultProvider, FunctionAbi, json, Provider} from 'starknet';
 import {readFileSync} from 'fs';
 
+function getMangledFunctionName(solidityFunctionName: string, args: Array<any>): string {
+  return 'NOT IMPLEMENTED';
+}
+
+function buildCall(cairoContract: Contract, cairoFunctionAbi: FunctionAbi): AsyncContractFunction {
+  return async function(...args: Array<any>) {
+    const solidityName: string = cairoFunctionAbi.name.slice(0, -9);
+    // Use the args and solidityName together to derive Cairo function Name
+    const cairoFunctionName: string = getMangledFunctionName(solidityName, args);
+    return cairoContract.call(cairoFunctionName, args);
+  };
+}
+
+function buildDefault(cairoContract: Contract, cairoFunctionAbi: FunctionAbi): AsyncContractFunction {
+  if (cairoFunctionAbi.stateMutability === 'view') {
+    return buildCall(cairoContract, cairoFunctionAbi);
+  }
+  // return buildInvoke(cairoContract, cairoFunctionAbi);
+}
 export class StarknetContractFactory {
   private contract: ContractInfo;
   private starknetFactory: ContractFactory;
@@ -24,11 +43,31 @@ export class StarknetContractFactory {
   }
 
   public async deploy(...args: any) {
+    let contract: Contract;
     if (args.length === 0) {
-      return this.starknetFactory.deploy();
+      contract = await this.starknetFactory.deploy();
     } else {
-      return this.starknetFactory.deploy([args]);
+      contract = await this.starknetFactory.deploy([args]);
     }
+    return this.reset(contract);
+  }
+
+  reset(contract: Contract) {
+    contract.abi.forEach((abiElement) => {
+      if (abiElement.type !== 'function') {
+        return;
+      }
+      const signature = abiElement.name;
+      const plainSig = signature.slice(0, -9); // Get the Sol func name for signature
+      if (!contract[plainSig]) {
+        Object.defineProperty(contract, plainSig, {
+          enumerable: true,
+          value: buildDefault(contract, abiElement),
+          writable: false,
+        });
+      }
+    });
+    return contract;
   }
 }
 
