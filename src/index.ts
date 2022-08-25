@@ -141,6 +141,9 @@ subtask(TASK_COMPILE_WARP_MAKE_TYPECHAIN,
       const abiPaths = await glob(
           path.join(config.paths.root, 'warp_output/**/*_compiled.json'),
       );
+      if (abiPaths.length === 0) {
+        return;
+      }
       const cwd = process.cwd();
       runTypeChain({
         cwd: cwd,
