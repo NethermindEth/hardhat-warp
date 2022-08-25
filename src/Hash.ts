@@ -16,6 +16,6 @@ export class HashInfo {
   }
 
   setHash(hash: string) {
-    this.hash= hash;
+    this.hash = hash;
   }
 }

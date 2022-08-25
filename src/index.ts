@@ -1,6 +1,6 @@
 import './type-extensions';
 import * as fs from 'fs';
-const {createHash} = require('crypto');
+import {createHash} from 'crypto';
 import {
   TASK_COMPILE_GET_COMPILATION_TASKS, TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS,
 } from 'hardhat/builtin-tasks/task-names';
@@ -94,7 +94,6 @@ subtask(TASK_COMPILE_WARP_GET_HASH)
           contract,
         }: {
       contract: string;
-      warpPath: string;
     }): Promise<boolean> => {
           const readContract = fs.readFileSync(contract, 'utf-8');
           const hash = createHash('sha256').update(readContract).digest('hex');

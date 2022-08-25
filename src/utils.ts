@@ -26,8 +26,6 @@ export function checkHash(hash: HashInfo) {
       if (temp.getSolidityFile() === hash.getSolidityFile()) {
         if (temp.getHash() === hash.getHash()) {
           needToCompile = false;
-        } else {
-          temp.setHash(hash.getHash());
         }
       } else {
         hashes.push(temp);
