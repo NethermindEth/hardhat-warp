@@ -1,6 +1,7 @@
 import {NomicLabsHardhatPluginError} from 'hardhat/plugins';
 import 'colors';
 import {ContractInfo} from './Contract';
+import {HashInfo} from './Hash';
 import * as fs from 'fs';
 
 export class WarpPluginError extends NomicLabsHardhatPluginError {
@@ -11,6 +12,26 @@ export class WarpPluginError extends NomicLabsHardhatPluginError {
 
 export function colorLogger(str: any) {
   console.log(str.blue.bold);
+}
+
+export function checkHash(hash: HashInfo) {
+  const hashes = [hash];
+  let needToCompile = true;
+  if (fs.existsSync('warp_output/hash.json')) {
+    const readData = fs.readFileSync('warp_output/hash.json', 'utf-8');
+    const existingData = JSON.parse(readData) as HashInfo[];
+    existingData.forEach((ctr) => {
+      const temp = new HashInfo('', '');
+      Object.assign(temp, ctr);
+      if (temp.getHash() === hash.getHash()) {
+        needToCompile = false;
+      } else {
+        hashes.push(temp);
+      }
+    });
+  }
+  fs.writeFileSync('warp_output/hash.json', JSON.stringify(hashes));
+  return needToCompile;
 }
 
 export function saveContract(contract: ContractInfo) {

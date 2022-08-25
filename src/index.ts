@@ -19,7 +19,7 @@ import {
   TASK_DEPLOY_WARP_GET_CAIRO_PATH,
 } from './task-names';
 import {Transpiler} from './transpiler';
-import {colorLogger, getContract, saveContract, WarpPluginError} from './utils';
+import {checkHash, colorLogger, getContract, saveContract, WarpPluginError} from './utils';
 
 export {getStarknetContractFactory} from './testing';
 
@@ -99,22 +99,8 @@ subtask(TASK_COMPILE_WARP_GET_HASH)
           const readContract = fs.readFileSync(contract, 'utf-8');
           const hash = createHash('sha256').update(readContract).digest('hex');
           const hashObj = new HashInfo(contract, hash);
-          const hashes = [hashObj];
-          if (fs.existsSync('warp_output/hash.json')) {
-            const readData = fs.readFileSync('warp_output/hash.json', 'utf-8');
-            const existingData = JSON.parse(readData) as HashInfo[];
-            existingData.forEach((ctr) => {
-              const temp = new HashInfo('', '');
-              Object.assign(temp, ctr);
-              if (temp.getHash() == hashObj.getHash()) {
-                return false;
-              } else {
-                hashes.push(temp);
-              }
-            });
-          }
-          fs.writeFileSync('warp_output/hash.json', JSON.stringify(hashes));
-          return true;
+          const needToCompile = checkHash(hashObj);
+          return needToCompile;
         },
     );
 
@@ -180,14 +166,17 @@ subtask(TASK_COMPILE_WARP)
               TASK_COMPILE_WARP_GET_SOURCE_PATHS,
           );
 
-          sourcePathsWarp.forEach(async (source) => {
-            const needtoCompile: boolean = await run(
+          const results = await Promise.all(sourcePathsWarp.map(async (source) => {
+            return await run(
                 TASK_COMPILE_WARP_GET_HASH,
                 {
                   contract: source,
                 },
             );
-            if (needtoCompile) {
+          }));
+
+          sourcePathsWarp.forEach(async (source, i) => {
+            if (results[i]) {
               await run(
                   TASK_COMPILE_WARP_RUN_BINARY,
                   {
@@ -197,15 +186,6 @@ subtask(TASK_COMPILE_WARP)
               );
             }
           });
-          /*
-          sourcePathsWarp.forEach(async (source) => await run(
-              TASK_COMPILE_WARP_RUN_BINARY,
-              {
-                contract: source,
-                warpPath: warpPath,
-              },
-          ));
-          */
         },
     );
 
