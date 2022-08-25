@@ -23,8 +23,12 @@ export function checkHash(hash: HashInfo) {
     existingData.forEach((ctr) => {
       const temp = new HashInfo('', '');
       Object.assign(temp, ctr);
-      if (temp.getHash() === hash.getHash()) {
-        needToCompile = false;
+      if (temp.getSolidityFile() === hash.getSolidityFile()) {
+        if (temp.getHash() === hash.getHash()) {
+          needToCompile = false;
+        } else {
+          temp.setHash(hash.getHash());
+        }
       } else {
         hashes.push(temp);
       }
