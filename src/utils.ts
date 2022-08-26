@@ -32,6 +32,11 @@ export function checkHash(hash: HashInfo) {
       }
     });
   }
+
+  if (!fs.existsSync('warp_output')) {
+    fs.mkdirSync('warp_output');
+  }
+
   fs.writeFileSync('warp_output/hash.json', JSON.stringify(hashes));
   return needToCompile;
 }
