@@ -3,16 +3,27 @@ import {getContract} from '../utils';
 import {AsyncContractFunction, Contract, ContractFactory, defaultProvider, FunctionAbi, json, Provider} from 'starknet';
 import {readFileSync} from 'fs';
 
-function getMangledFunctionName(solidityFunctionName: string, args: Array<any>): string {
-  return 'NOT IMPLEMENTED';
+
+function buildCall(contract: Contract, functionAbi: FunctionAbi): AsyncContractFunction {
+  return async function(...args: Array<any>): Promise<any> {
+    return contract.call(functionAbi.name, args);
+  };
 }
 
-function buildCall(cairoContract: Contract, cairoFunctionAbi: FunctionAbi): AsyncContractFunction {
-  return async function(...args: Array<any>) {
-    const solidityName: string = cairoFunctionAbi.name.slice(0, -9);
-    // Use the args and solidityName together to derive Cairo function Name
-    const cairoFunctionName: string = getMangledFunctionName(solidityName, args);
-    return cairoContract.call(cairoFunctionName, args);
+function buildInvoke(contract: Contract, functionAbi: FunctionAbi): AsyncContractFunction {
+  return async function(...args: Array<any>): Promise<any> {
+    const {inputs} = functionAbi;
+    const inputsLength = inputs.reduce((acc, input) => {
+      if (!/_len$/.test(input.name)) {
+        return acc + 1;
+      }
+      return acc;
+    }, 0);
+    const options = {};
+    if (inputsLength + 1 === args.length && typeof args[args.length - 1] === 'object') {
+      Object.assign(options, args.pop());
+    }
+    return contract.invoke(functionAbi.name, args, options);
   };
 }
 
@@ -20,8 +31,9 @@ function buildDefault(cairoContract: Contract, cairoFunctionAbi: FunctionAbi): A
   if (cairoFunctionAbi.stateMutability === 'view') {
     return buildCall(cairoContract, cairoFunctionAbi);
   }
-  // return buildInvoke(cairoContract, cairoFunctionAbi);
+  return buildInvoke(cairoContract, cairoFunctionAbi);
 }
+
 export class StarknetContractFactory {
   private contract: ContractInfo;
   private starknetFactory: ContractFactory;
@@ -63,6 +75,21 @@ export class StarknetContractFactory {
         Object.defineProperty(contract, plainSig, {
           enumerable: true,
           value: buildDefault(contract, abiElement),
+          writable: false,
+        });
+      }
+      if (!contract.functions[plainSig]) {
+        Object.defineProperty(contract.functions, plainSig, {
+          enumerable: true,
+          value: buildDefault(contract, abiElement),
+          writable: false,
+        });
+      }
+
+      if (!contract.callStatic[plainSig]) {
+        Object.defineProperty(contract.callStatic, plainSig, {
+          enumerable: true,
+          value: buildCall(contract, abiElement),
           writable: false,
         });
       }
