@@ -142,6 +142,7 @@ subtask(TASK_COMPILE_WARP_MAKE_TYPECHAIN,
           path.join(config.paths.root, 'warp_output/**/*_compiled.json'),
       );
       if (abiPaths.length === 0) {
+        console.log('No compiled Starknet contracts found, no typechains to build');
         return;
       }
       const cwd = process.cwd();
