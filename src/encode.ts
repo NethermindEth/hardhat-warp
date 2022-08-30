@@ -173,16 +173,30 @@ export function bigintToTwosComplement(val: bigint, width: number): bigint {
   }
 }
 
-export function decode(
+export function isPrimitiveParam(type: ParamType) : boolean {
+  return type.indexed === false && type.components.length === 0;
+}
+
+export function decode(types: ParamType[], outputs: string[]) {
+  return decode_(types, outputs.values());
+}
+
+export function decode_(
   types: ParamType[],
-  outputs: IterableIterator<[string]>
+  outputs: IterableIterator<string>
 ): Result {
-  return [];
+  return types.map((ty) => {
+    if (isPrimitiveParam(ty)) {
+      return decodePrimitive(ty.baseType, outputs)
+    } else {
+      return decodeComplex(ty, outputs);
+    }
+  })
 }
 
 function decodePrimitive(
   typeString: string,
-  outputs: IterableIterator<[string]>
+  outputs: IterableIterator<string>
 ): BigNumberish {
   if (typeString.startsWith("uint")) {
     return decodeUint(
@@ -212,11 +226,11 @@ function decodePrimitive(
   return 1n;
 }
 
-function readFelt(outputs: IterableIterator<[string]>): bigint {
+function readFelt(outputs: IterableIterator<string>): bigint {
   return BigInt(outputs.next().value);
 }
 
-function readUint(outputs: IterableIterator<[string]>): bigint {
+function readUint(outputs: IterableIterator<string>): bigint {
   const low = BigInt(outputs.next().value);
   const high = BigInt(outputs.next().value);
   return (high << 128n) + low;
@@ -224,16 +238,16 @@ function readUint(outputs: IterableIterator<[string]>): bigint {
 
 function decodeUint(
   nbits: number,
-  outputs: IterableIterator<[string]>
+  outputs: IterableIterator<string>
 ): bigint {
   return nbits < 256 ? readFelt(outputs) : readUint(outputs);
 }
 
-function decodeInt(nbits: number, outputs: IterableIterator<[string]>): bigint {
+function decodeInt(nbits: number, outputs: IterableIterator<string>): bigint {
   return twosComplementToBigInt(nbits < 256 ? readFelt(outputs) : readUint(outputs), nbits)
 }
 
-function decodeBytes(outputs: IterableIterator<[string]>): bigint {
+function decodeBytes(outputs: IterableIterator<string>): bigint {
   const len = readFelt(outputs);
   let result = 0n;
   for (let i = 0; i < len; i++) {
@@ -243,7 +257,7 @@ function decodeBytes(outputs: IterableIterator<[string]>): bigint {
   return result;
 }
 
-function decodeFixedBytes(outputs: IterableIterator<[string]>, length: number) {
+function decodeFixedBytes(outputs: IterableIterator<string>, length: number) {
   if (length < 32) {
     return readFelt(outputs)
   } else return readUint(outputs)
@@ -259,6 +273,31 @@ export function twosComplementToBigInt(val: bigint, width: number): bigint {
   } else {
     // Positive numbers as are
     return val;
+  }
+}
+
+export function decodeComplex(
+  type: ParamType,
+  outputs: IterableIterator<string>
+) {
+  if (type.indexed) {
+    // array type
+    const length =
+      type.arrayLength === -1 ? readFelt(outputs) : type.arrayLength;
+    const result: Result = [];
+    for (let i = 0; i < length; ++i) {
+      result.push(decode_([type.arrayChildren], outputs));
+    }
+    return result;
+  } else if (type.components.length !== 0) {
+    // struct type
+    const indexedMembers = type.components.map((m) => decode_([m], outputs));
+    const namedMembers: { [key: string]: any } = {};
+    type.components.forEach((member, i) => {
+      namedMembers[member.name] = indexedMembers[i];
+    });
+
+    return { ...namedMembers, ...indexedMembers } as Result;
   }
 }
 
@@ -298,29 +337,4 @@ export function getWidthOf(type: ParamType): number {
     }, 0);
   }
   throw new Error("Not Supported " + type.baseType);
-}
-
-export function decodeComplex(
-  type: ParamType,
-  outputs: IterableIterator<[string]>
-) {
-  if (type.indexed) {
-    // array type
-    const length =
-      type.arrayLength === -1 ? readFelt(outputs) : type.arrayLength;
-    const result: Result = [];
-    for (let i = 0; i < length; ++i) {
-      result.push(decode([type.arrayChildren], outputs));
-    }
-    return result;
-  } else if (type.components.length !== 0) {
-    // struct type
-    const indexedMembers = type.components.map((m) => decode([m], outputs));
-    const namedMembers: { [key: string]: any } = {};
-    type.components.forEach((member, i) => {
-      namedMembers[member.name] = indexedMembers[i];
-    });
-
-    return { ...namedMembers, ...indexedMembers } as Result;
-  }
 }
