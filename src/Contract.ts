@@ -1,9 +1,10 @@
 import path from 'path';
-import {ContractFactory as StarknetContractFactory, Contract as StarknetContract} from "starknet";
-import {BaseContract, BigNumber, BigNumberish, Contract as EthersContract,
+import {ContractFactory as StarknetContractFactory, CallContractResponse,Contract as StarknetContract} from "starknet";
+import BN from 'bn.js';
+import {BigNumberish, Contract as EthersContract,
   ContractFactory as EthersContractFactory,  ContractFunction,  
-  PopulatedTransaction,  Signer, Event, ContractInterface} from "ethers"; import {Indexed, Interface} from
-'ethers/lib/utils';
+  PopulatedTransaction,  Signer, Event, ContractInterface, BigNumber} from "ethers";
+import {FunctionFragment, Indexed, Interface, ParamType} from 'ethers/lib/utils';
 import {BlockTag, EventFilter, Listener, Provider, TransactionRequest, TransactionResponse} from '@ethersproject/abstract-provider';
 import {parse, TypeNode} from "solc-typed-ast"
 import {encodeValue, SolValue} from './encode';
@@ -68,6 +69,7 @@ export class WarpContract extends EthersContract {
       this.populateTransaction = starknetContract.populateTransaction;
       this.resolvedAddress = Promise.resolve(starknetContract.address);
       this._deployedPromise = Promise.resolve(this);
+      this.solidityCairoRemap()
     }
 
     static getContractAddress(transaction: { from: string, nonce: BigNumberish }): string {
@@ -146,30 +148,36 @@ export class WarpContract extends EthersContract {
       return Array.isArray(arg) ? arg.map(this.argStringifier) : arg.toString();
     }
 
-    private wrap(funcname : string, signature : string, inputTypes: string[], outputTypes: string[]) {
-      const functionToWrap : (...args : any) => Promise<any> = this[signature];
-      const inputTypeNodes = inputTypes.map((tp) => parse(tp, {ctx : undefined, version : undefined}) as TypeNode)
-      const outputTypeNodes = outputTypes.map((tp) => parse(tp, {ctx : undefined, version : undefined}) as TypeNode)
+    private wrap([funcname, fragment]: [string, FunctionFragment]) {
+      const inputTypeNodes = fragment.inputs.map((tp) => parse(tp.type, {ctx : undefined, version : undefined}) as TypeNode)
 
+      const cairoFuncName = funcname // Todo finish this keccak (use web3)
       // @ts-ignore
-      this[signature] = async (...args : any[]) => {
-        return await this.starknetContract[](
-          ...args.map((arg, i) => encodeValue(inputTypeNodes[i], this.argStringifier(arg), "we don't care").flat())
+      this[funcname] = async (...args : any[]) => {
+        const calldata = args.flatMap((arg, i) => encodeValue(inputTypeNodes[i], this.argStringifier(arg), "we don't care")).map((s) =>new BN(s, 10))
+        return this.starknetContract.providerOrAccount.callContract(
+          {
+            contractAddress: this.starknetContract.address,
+            calldata,
+            entrypoint: cairoFuncName,
+          },
+          { blockIdentifier: 'pending'}
         )
+        .then((x) => this.parseResponse(fragment.outputs, x.result));
       };
 
-      this.functions[signature]
+      this.functions[funcname]
 
-      this.callStatic[signature]
+      this.callStatic[funcname]
+    }
+
+    private parseResponse(returnTypes : ParamType[] | undefined, result : string[]) {
+      if (returnTypes === undefined) return [];
     }
 
     private solidityCairoRemap() {
       Object.entries(this.interface.functions).forEach(
-        ([funcName, abiElement]) => {
-          const inputTypes = abiElement.inputs.map((pt) => pt.type);
-          const outputTypes = abiElement.outputs?.map((pt) => pt.type) || [];
-          const signature = abiElement.type;
-          this.wrap(funcName, signature, inputTypes, outputTypes)
-        });
+        this.wrap
+      );
     }
 }

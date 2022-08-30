@@ -1,3 +1,6 @@
+import {BigNumberish} from "ethers";
+import BN from 'bn.js';
+import {ParamType, Result} from "ethers/lib/utils";
 import {AddressType, ArrayType, BoolType, BuiltinStructType, BuiltinType, BytesType, ContractDefinition, EnumDefinition, FixedBytesType, FunctionType, IntType, MappingType, PointerType, StringType, TypeNameType, TypeNode, UserDefinedType} from "solc-typed-ast";
 
 export type SolValue = string | SolValue[]
@@ -131,5 +134,68 @@ export function bigintToTwosComplement(val: bigint, width: number): bigint {
     const inverted = `0b${[...allBits].map((c) => (c === '0' ? '1' : '0')).join('')}`;
     const twosComplement = (BigInt(inverted) + 1n).toString(2).slice(-width);
     return BigInt(`0b${twosComplement}`);
+  }
+}
+
+export function decode(
+  types: ParamType[],
+  outputs: string[]
+): Result {
+  const outputIterator = outputs.values()
+  return []
+}
+
+function decodePrimitive(
+  typeString: string,
+  outputs: IterableIterator<[string]>
+): BigNumberish {
+  if (typeString.startsWith("uint")) {
+    return decodeUint(typeString.length > 4 ? parseInt(typeString.slice(4)) : 256, outputs)
+  }
+  if (typeString.startsWith("int")) {
+    return decodeInt(typeString.length > 3 ? parseInt(typeString.slice(3)) : 256, outputs)
+  }
+  if (typeString === "address") {
+    return readFelt(outputs)
+  }
+  if (typeString === "bool") {
+    return readFelt(outputs)
+  }
+  if (typeString === "fixed" || typeString === "ufixed") {
+    throw new Error("Not Supported")
+  }
+  if (typeString.startsWith("bytes")) {
+  }
+  return 1n
+}
+
+function readFelt(outputs: IterableIterator<[string]>) : bigint {
+    return BigInt(outputs.next().value)
+}
+
+function readUint(outputs: IterableIterator<[string]>): bigint {
+    const low = BigInt(outputs.next().value)
+    const high = BigInt(outputs.next().value)
+    return (high << 128n) + low;
+}
+
+function decodeUint(nbits: number, outputs: IterableIterator<[string]>): bigint {
+  return nbits < 256 ? readFelt(outputs) : readUint(outputs)
+}
+
+function decodeInt(nbits: number, outputs: IterableIterator<[string]>) {
+  return twosComplementToBigInt(nbits < 256 ? readFelt(outputs) : readUint(outputs), nbits)
+}
+
+export function twosComplementToBigInt(val: bigint, width: number): bigint {
+  const mask = 2n ** BigInt(width) - 1n
+  const max = 2n ** BigInt(width - 1) - 1n
+  if (val > max) {
+    // Negative number
+    const pos = (val ^ mask) + 1n
+    return -pos
+  } else {
+    // Positive numbers as are
+    return val
   }
 }
