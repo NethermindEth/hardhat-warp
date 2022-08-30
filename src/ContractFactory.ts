@@ -27,8 +27,9 @@ export class ContractFactory {
     }
 
     async deploy(...args: Array<any>): Promise<EthersContract> {
-      const starknetContract = this.starknetContractFactory.deploy(args);
-      const contract = new WarpContract(await starknetContract, this.starknetContractFactory, this.ethersContractFactory);
+      // TODO: arg parsing
+      const starknetContract = await this.starknetContractFactory.deploy(args);
+      const contract = new WarpContract(starknetContract, this.starknetContractFactory, this.ethersContractFactory);
       return contract;
     }
 

@@ -1,13 +1,17 @@
 import path from 'path';
-import {ContractFactory as StarknetContractFactory, CallContractResponse,Contract as StarknetContract} from "starknet";
+import {GatewayError, ContractFactory as StarknetContractFactory, CallContractResponse,Contract as StarknetContract} from "starknet";
 import BN from 'bn.js';
 import {BigNumberish, Contract as EthersContract,
   ContractFactory as EthersContractFactory,  ContractFunction,  
   PopulatedTransaction,  Signer, Event, ContractInterface, BigNumber} from "ethers";
-import {FunctionFragment, Indexed, Interface, ParamType} from 'ethers/lib/utils';
+import {FunctionFragment, Indexed, Interface, keccak256, ParamType} from 'ethers/lib/utils';
 import {BlockTag, EventFilter, Listener, Provider, TransactionRequest, TransactionResponse} from '@ethersproject/abstract-provider';
 import {parse, TypeNode} from "solc-typed-ast"
-import {encodeValue, SolValue} from './encode';
+import {decode, encodeValue, encodeValueOuter, SolValue} from './encode';
+
+
+const ASSERT_ERROR = "An ASSERT_EQ instruction failed"
+
 export class ContractInfo {
   private name: string;
   private solidityFile: string;
@@ -147,11 +151,14 @@ export class WarpContract extends EthersContract {
     private wrap([funcname, fragment]: [string, FunctionFragment]) {
       const inputTypeNodes = fragment.inputs.map((tp) => parse(tp.type, {ctx : undefined, version : undefined}) as TypeNode)
 
-      const cairoFuncName = funcname // Todo finish this keccak (use web3)
+      const solName = funcname.split("(")[0]
+      const cairoFuncName = solName + "_" + this.interface.getSighash(fragment).slice(2) // Todo finish this keccak (use web3)
       // @ts-ignore
-      this[funcname] = async (...args : any[]) => {
-        const calldata = args.flatMap((arg, i) => encodeValue(inputTypeNodes[i], this.argStringifier(arg), "we don't care")).map((s) =>new BN(s, 10))
-        return this.starknetContract.providerOrAccount.callContract(
+      this[solName] = async (...args : any[]) => {
+        const calldata = args.flatMap((arg, i) => encodeValueOuter(inputTypeNodes[i], this.argStringifier(arg), "we don't care"));
+        console.log(calldata)
+        try {
+        const output_before = await this.starknetContract.providerOrAccount.callContract(
           {
             contractAddress: this.starknetContract.address,
             calldata,
@@ -159,7 +166,20 @@ export class WarpContract extends EthersContract {
           },
           { blockIdentifier: 'pending'}
         )
-        .then((x) => this.parseResponse(fragment.outputs, x.result));
+        console.log(output_before)
+        const output =  this.parseResponse(fragment.outputs, output_before.result)
+        console.log(output)
+        return output
+        } catch (e) {
+          if (e instanceof GatewayError) {
+            if (e.message.includes(ASSERT_ERROR)) {
+            } else {
+              throw e;
+            }
+          } else {
+            throw e;
+          }
+        }
       };
 
       this.functions[funcname]
@@ -169,6 +189,7 @@ export class WarpContract extends EthersContract {
 
     private parseResponse(returnTypes : ParamType[] | undefined, result : string[]) {
       if (returnTypes === undefined) return [];
+      return decode(returnTypes, result)
     }
 
     private solidityCairoRemap() {

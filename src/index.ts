@@ -44,8 +44,6 @@ extendEnvironment((hre) => {
     return Promise.resolve(new ContractFactory(starknetContractFactory, ethersContractFactory));
   };
   // @ts-ignore
-  console.log(hre.ethers.provider.formatter.address)
-  // @ts-ignore
   hre.ethers.provider.formatter.address = (address: string): string => {
     try {
       const addressVal = BigInt(address)

@@ -23,11 +23,11 @@ import {
 
 export type SolValue = string | SolValue[];
 
-export function encodeValue(
-  tp: TypeNode,
-  value: SolValue,
-  compilerVersion: string
-): string[] {
+export function encodeValueOuter(tp: TypeNode, value: SolValue, compilerVersion: string): string[] {
+  return encodeValue(tp, value, compilerVersion)
+}
+
+export function encodeValue(tp: TypeNode, value: SolValue, compilerVersion: string): string[] {
   if (tp instanceof IntType) {
     return encodeAsUintOrFelt(tp, value, tp.nBits);
   } else if (tp instanceof ArrayType) {
@@ -174,11 +174,14 @@ export function bigintToTwosComplement(val: bigint, width: number): bigint {
 }
 
 export function isPrimitiveParam(type: ParamType) : boolean {
-  return type.indexed === false && type.components.length === 0;
+  return type.indexed === null && type.components === null;
 }
 
 export function decode(types: ParamType[], outputs: string[]) {
-  return decode_(types, outputs.values());
+  const decoded = decode_(types, outputs.values());
+  if (types.length === 1) {
+    return decoded[0];
+  } return decoded;
 }
 
 export function decode_(
@@ -197,7 +200,7 @@ export function decode_(
 function decodePrimitive(
   typeString: string,
   outputs: IterableIterator<string>
-): BigNumberish {
+): BigNumberish | boolean {
   if (typeString.startsWith("uint")) {
     return decodeUint(
       typeString.length > 4 ? parseInt(typeString.slice(4), 10) : 256,
@@ -214,8 +217,7 @@ function decodePrimitive(
     return readFelt(outputs);
   }
   if (typeString === "bool") {
-    // TODO: may need to convert to true/false
-    return readFelt(outputs);
+    return readFelt(outputs) === 0n ? false : true;
   }
   if (typeString === "fixed" || typeString === "ufixed") {
     throw new Error("Not Supported");
@@ -230,6 +232,10 @@ function readFelt(outputs: IterableIterator<string>): bigint {
   return BigInt(outputs.next().value);
 }
 
+function useNumberIfSafe(n : bigint, width : number) : bigint | number {
+    return (width <= 48) ? Number(n) : n;
+}
+
 function readUint(outputs: IterableIterator<string>): bigint {
   const low = BigInt(outputs.next().value);
   const high = BigInt(outputs.next().value);
@@ -239,12 +245,12 @@ function readUint(outputs: IterableIterator<string>): bigint {
 function decodeUint(
   nbits: number,
   outputs: IterableIterator<string>
-): bigint {
-  return nbits < 256 ? readFelt(outputs) : readUint(outputs);
+): bigint | number{
+  return useNumberIfSafe(nbits < 256 ? readFelt(outputs) : readUint(outputs), nbits)
 }
 
-function decodeInt(nbits: number, outputs: IterableIterator<string>): bigint {
-  return twosComplementToBigInt(nbits < 256 ? readFelt(outputs) : readUint(outputs), nbits)
+function decodeInt(nbits: number, outputs: IterableIterator<string>): bigint | number {
+  return useNumberIfSafe(twosComplementToBigInt(nbits < 256 ? BigInt(readFelt(outputs)) : readUint(outputs), nbits), nbits);
 }
 
 function decodeBytes(outputs: IterableIterator<string>): bigint {
@@ -252,15 +258,13 @@ function decodeBytes(outputs: IterableIterator<string>): bigint {
   let result = 0n;
   for (let i = 0; i < len; i++) {
     result << 8n;
-    result += readFelt(outputs);
+    result += BigInt(readFelt(outputs));
   }
   return result;
 }
 
-function decodeFixedBytes(outputs: IterableIterator<string>, length: number) {
-  if (length < 32) {
-    return readFelt(outputs)
-  } else return readUint(outputs)
+function decodeFixedBytes(outputs: IterableIterator<string>, length: number) : bigint | number {
+  return useNumberIfSafe((length < 32) ? readFelt(outputs) : readUint(outputs), length * 8)
 }
 
 export function twosComplementToBigInt(val: bigint, width: number): bigint {
