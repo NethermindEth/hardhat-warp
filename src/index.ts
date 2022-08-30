@@ -25,16 +25,10 @@ import { extendEnvironment } from "hardhat/config";
 import {getStarknetContractFactory} from './testing';
 
 import * as properties from "@ethersproject/properties"
+import * as address from "@ethersproject/address"
 
-// @ts-ignore
-properties.defineReadOnly = <T, K extends keyof T>(object: T, name: K, value: T[K]) => {
-    console.log("defininng new prop")
-    Object.defineProperty(object, name, {
-        enumerable: true,
-        value: value,
-        writable: true,
-    });
-}
+
+import {ContractFactory} from './ContractFactory';
 
 // Hack to wreck safety
 
@@ -43,12 +37,27 @@ extendEnvironment((hre) => {
   //@ts-ignore
   const getContractFactory = hre.ethers.getContractFactory;
   //@ts-ignore
-  hre.ethers.getContractFactory = (name) => {
-    const solidityContractFactory = getContractFactory(name)
+  hre.ethers.getContractFactory = async (name) => {
+    const ethersContractFactory = await getContractFactory(name)
     const starknetContractFactory = getStarknetContractFactory(name)
 
-
+    return Promise.resolve(new ContractFactory(starknetContractFactory, ethersContractFactory));
   };
+  // @ts-ignore
+  console.log(hre.ethers.provider.formatter.address)
+  // @ts-ignore
+  hre.ethers.provider.formatter.address = (address: string): string => {
+    try {
+      const addressVal = BigInt(address)
+      if (addressVal >= 2 ** 251) {
+        throw new Error(`Address is not a valid starknet address ${address}`)
+      }
+      return address
+    } catch {
+        throw new Error(`Address is not a valid starknet address ${address}`)
+    }
+  }
+
 })
 
 extendConfig(

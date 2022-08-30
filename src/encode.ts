@@ -165,6 +165,7 @@ function decodePrimitive(
     throw new Error("Not Supported")
   }
   if (typeString.startsWith("bytes")) {
+    return typeString.length === 5 ? decodeBytes(outputs) : decodeFixedBytes(outputs, parseInt(typeString.slice(5)))
   }
   return 1n
 }
@@ -183,8 +184,24 @@ function decodeUint(nbits: number, outputs: IterableIterator<[string]>): bigint 
   return nbits < 256 ? readFelt(outputs) : readUint(outputs)
 }
 
-function decodeInt(nbits: number, outputs: IterableIterator<[string]>) {
+function decodeInt(nbits: number, outputs: IterableIterator<[string]>): bigint {
   return twosComplementToBigInt(nbits < 256 ? readFelt(outputs) : readUint(outputs), nbits)
+}
+
+function decodeBytes(outputs: IterableIterator<[string]>): bigint {
+  const len = readFelt(outputs);
+  let result = 0n;
+  for (let i = 0; i < len; i++) {
+    result << 8n;
+    result += readFelt(outputs);
+  }
+  return result;
+}
+
+function decodeFixedBytes(outputs: IterableIterator<[string]>, length: number) {
+  if (length < 32) {
+    return readFelt(outputs)
+  } else return readUint(outputs)
 }
 
 export function twosComplementToBigInt(val: bigint, width: number): bigint {

@@ -76,10 +76,6 @@ export class WarpContract extends EthersContract {
       throw new Error("Not implemented yet");
     }
 
-    static getInterface(contractInterface: ContractInterface): Interface {
-      throw new Error("Not implemented yet");
-    }
-
     // @TODO: Allow timeout?
     deployed(): Promise<EthersContract> {
       return Promise.resolve(this);
@@ -177,7 +173,7 @@ export class WarpContract extends EthersContract {
 
     private solidityCairoRemap() {
       Object.entries(this.interface.functions).forEach(
-        this.wrap
+        this.wrap.bind(this)
       );
     }
 }
