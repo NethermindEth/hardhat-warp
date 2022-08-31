@@ -1,4 +1,4 @@
-import { BigNumberish } from "ethers";
+import { BigNumber, BigNumberish } from "ethers";
 import BN from "bn.js";
 import { ParamType, Result } from "ethers/lib/utils";
 import {
@@ -43,10 +43,10 @@ export function encodeValue(tp: TypeNode, value: SolValue, compilerVersion: stri
       return value.flatMap((v) => encodeValue(tp.elementT, v, compilerVersion));
     }
   } else if (tp instanceof BoolType) {
-    if (typeof value !== "boolean") {
+    if (typeof value !== "string") {
       throw new Error(`Can't encode ${value} as boolType`);
     }
-    return [value ? "1" : "0"];
+    return [value === "true" ? "1" : "0"];
   } else if (tp instanceof BytesType) {
     if (value === null) return ["0"];
     if (typeof value !== "string") {
@@ -179,9 +179,14 @@ export function isPrimitiveParam(type: ParamType) : boolean {
 
 export function decode(types: ParamType[], outputs: string[]) {
   const decoded = decode_(types, outputs.values());
+  const namedMembers: { [key: string]: any } = {};
+  types.forEach((ty, i) => {
+    namedMembers[ty.name] = decoded[i];
+  });
+
   if (types.length === 1) {
     return decoded[0];
-  } return decoded;
+  } return {...namedMembers, ...decoded};
 }
 
 export function decode_(
@@ -232,8 +237,8 @@ function readFelt(outputs: IterableIterator<string>): bigint {
   return BigInt(outputs.next().value);
 }
 
-function useNumberIfSafe(n : bigint, width : number) : bigint | number {
-    return (width <= 48) ? Number(n) : n;
+function useNumberIfSafe(n : bigint, width : number) : BigNumber | number {
+    return (width <= 48) ? Number(n) : BigNumber.from(n);
 }
 
 function readUint(outputs: IterableIterator<string>): bigint {
@@ -245,11 +250,11 @@ function readUint(outputs: IterableIterator<string>): bigint {
 function decodeUint(
   nbits: number,
   outputs: IterableIterator<string>
-): bigint | number{
+): BigNumber | number{
   return useNumberIfSafe(nbits < 256 ? readFelt(outputs) : readUint(outputs), nbits)
 }
 
-function decodeInt(nbits: number, outputs: IterableIterator<string>): bigint | number {
+function decodeInt(nbits: number, outputs: IterableIterator<string>): BigNumber | number {
   return useNumberIfSafe(twosComplementToBigInt(nbits < 256 ? BigInt(readFelt(outputs)) : readUint(outputs), nbits), nbits);
 }
 
@@ -263,7 +268,7 @@ function decodeBytes(outputs: IterableIterator<string>): bigint {
   return result;
 }
 
-function decodeFixedBytes(outputs: IterableIterator<string>, length: number) : bigint | number {
+function decodeFixedBytes(outputs: IterableIterator<string>, length: number) : BigNumber | number {
   return useNumberIfSafe((length < 32) ? readFelt(outputs) : readUint(outputs), length * 8)
 }
 

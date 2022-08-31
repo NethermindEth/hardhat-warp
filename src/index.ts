@@ -2,11 +2,11 @@ import './type-extensions';
 import * as fs from 'fs';
 import {createHash} from 'crypto';
 import {
-  TASK_COMPILE_GET_COMPILATION_TASKS, TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS,
+  TASK_COMPILE_GET_COMPILATION_TASKS, TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS, TASK_COMPILE_SOLIDITY_RUN_SOLC,
 } from 'hardhat/builtin-tasks/task-names';
 import {extendConfig, subtask, task, types} from 'hardhat/config';
 import {glob} from 'hardhat/internal/util/glob';
-import {HardhatConfig, HardhatUserConfig} from 'hardhat/types';
+import {CompilerInput, HardhatConfig, HardhatUserConfig} from 'hardhat/types';
 import path from 'path';
 import {runTypeChain} from 'typechain';
 
@@ -23,12 +23,36 @@ import {checkHash, colorLogger, getContract, saveContract, WarpPluginError} from
 
 import { extendEnvironment } from "hardhat/config";
 import {getStarknetContractFactory} from './testing';
-
 import * as properties from "@ethersproject/properties"
 import * as address from "@ethersproject/address"
 
+export class NativeCompiler {
+  constructor(private _pathToSolc: string) {}
 
+  public async compile(input: any) {
+    const output: string = await new Promise((resolve, reject) => {
+      const process = exec(
+        `${this._pathToSolc} --standard-json`,
+        {
+          maxBuffer: 1024 * 1024 * 1024 * 1024,
+        },
+        (err: any, stdout: any) => {
+          if (err !== null) {
+            return reject(err);
+          }
+          resolve(stdout);
+        }
+      );
+
+      process.stdin!.write(JSON.stringify(input));
+      process.stdin!.end();
+    });
+
+    return JSON.parse(output);
+  }
+}
 import {ContractFactory} from './ContractFactory';
+import {exec} from 'child_process';
 
 // Hack to wreck safety
 
@@ -77,6 +101,19 @@ extendConfig(
     },
 );
 
+subtask(TASK_COMPILE_SOLIDITY_RUN_SOLC)
+  .setAction(
+    async ({ input, solcPath }: { input: CompilerInput; solcPath: string }) => {
+      
+      const compiler = new NativeCompiler("/Users/jorik/dev/nethermind/warp/nethersolc/darwin_x64/8/solc");
+
+      input.settings.optimizer.enabled = false
+      const output = await compiler.compile(input);
+
+      return output;
+    }
+  );
+
 subtask(
     TASK_COMPILE_GET_COMPILATION_TASKS,
     async (_, __, runSuper): Promise<string[]> => {
@@ -114,11 +151,10 @@ subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS,
 subtask(TASK_COMPILE_WARP_GET_SOURCE_PATHS,
     async (_, {config}): Promise<string[]> => {
       const starknetContracts = await glob(
-          path.join(config.paths.root, 'starknet_contracts/**/*.sol'),
+          path.join(config.paths.root, 'contracts/**/*.sol'),
       );
-      const contracts = await glob(path.join(config.paths.root, 'contracts/**/*_cairo.sol'));
 
-      return starknetContracts.concat(contracts).map((contract) => path.relative(config.paths.root, contract));
+      return starknetContracts.map((contract) => path.relative(config.paths.root, contract));
     },
 );
 

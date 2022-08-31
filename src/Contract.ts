@@ -147,28 +147,33 @@ export class WarpContract extends EthersContract {
     private argStringifier(arg: any) : SolValue {
       return Array.isArray(arg) ? arg.map(this.argStringifier) : arg.toString();
     }
+    
 
-    private wrap([funcname, fragment]: [string, FunctionFragment]) {
+    private buildDefault(solName : string, fragment : FunctionFragment) {
+        if (fragment.constant) {
+          return this.buildCall(solName, fragment);
+        }
+
       const inputTypeNodes = fragment.inputs.map((tp) => parse(tp.type, {ctx : undefined, version : undefined}) as TypeNode)
 
-      const solName = funcname.split("(")[0]
       const cairoFuncName = solName + "_" + this.interface.getSighash(fragment).slice(2) // Todo finish this keccak (use web3)
       // @ts-ignore
-      this[solName] = async (...args : any[]) => {
+      return async (...args : any[]) => {
         const calldata = args.flatMap((arg, i) => encodeValueOuter(inputTypeNodes[i], this.argStringifier(arg), "we don't care"));
-        console.log(calldata)
+        // console.log(calldata)
         try {
-        const output_before = await this.starknetContract.providerOrAccount.callContract(
-          {
-            contractAddress: this.starknetContract.address,
-            calldata,
-            entrypoint: cairoFuncName,
-          },
-          { blockIdentifier: 'pending'}
+          const invokeOptions = {
+              contractAddress: this.starknetContract.address,
+              calldata,
+              entrypoint: cairoFuncName,
+            };
+          const output_before = await this.starknetContract.providerOrAccount.callContract(invokeOptions,
+            { blockIdentifier: 'pending'}
         )
-        console.log(output_before)
         const output =  this.parseResponse(fragment.outputs, output_before.result)
-        console.log(output)
+        // Do an invoke to make state change
+        const invokeResponse = await this.starknetContract.providerOrAccount.invokeFunction(invokeOptions);
+        await this.starknetContract.providerOrAccount.waitForTransaction(invokeResponse.transaction_hash);
         return output
         } catch (e) {
           if (e instanceof GatewayError) {
@@ -182,9 +187,50 @@ export class WarpContract extends EthersContract {
         }
       };
 
-      this.functions[funcname]
+    }
+    private buildCall(solName : string, fragment : FunctionFragment) {
+      const inputTypeNodes = fragment.inputs.map((tp) => parse(tp.type, {ctx : undefined, version : undefined}) as TypeNode)
 
-      this.callStatic[funcname]
+      const cairoFuncName = solName + "_" + this.interface.getSighash(fragment).slice(2) // Todo finish this keccak (use web3)
+      // @ts-ignore
+      return async (...args : any[]) => {
+        const calldata = args.flatMap((arg, i) => encodeValueOuter(inputTypeNodes[i], this.argStringifier(arg), "we don't care"));
+        // console.log(calldata)
+        try {
+          const output_before = await this.starknetContract.providerOrAccount.callContract(
+            {
+              contractAddress: this.starknetContract.address,
+              calldata,
+              entrypoint: cairoFuncName,
+            },
+            { blockIdentifier: 'pending'}
+        )
+        const output =  this.parseResponse(fragment.outputs, output_before.result)
+          console.log(output_before);
+          console.log(output)
+        return output
+        } catch (e) {
+          if (e instanceof GatewayError) {
+            if (e.message.includes(ASSERT_ERROR)) {
+            } else {
+              throw e;
+            }
+          } else {
+            throw e;
+          }
+        }
+      };
+    }
+
+    private wrap([funcname, fragment]: [string, FunctionFragment]) {
+      const solName = funcname.split("(")[0]
+
+      // @ts-ignore
+      this[solName] = this.buildDefault(solName, fragment);
+
+      this.functions[funcname] = this.buildDefault(solName, fragment);
+
+      this.callStatic[funcname] = this.buildCall(solName, fragment);
     }
 
     private parseResponse(returnTypes : ParamType[] | undefined, result : string[]) {
