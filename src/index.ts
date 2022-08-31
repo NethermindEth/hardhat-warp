@@ -101,18 +101,17 @@ extendConfig(
     },
 );
 
-subtask(TASK_COMPILE_SOLIDITY_RUN_SOLC)
-  .setAction(
-    async ({ input, solcPath }: { input: CompilerInput; solcPath: string }) => {
+// subtask(TASK_COMPILE_SOLIDITY_RUN_SOLC)
+//   .setAction(
+//     async ({ input, solcPath }: { input: CompilerInput; solcPath: string }) => {
       
-      const compiler = new NativeCompiler("/Users/jorik/dev/nethermind/warp/nethersolc/darwin_x64/8/solc");
+//       const compiler = new NativeCompiler("/Users/jorik/dev/nethermind/warp/nethersolc/darwin_x64/8/solc");
 
-      input.settings.optimizer.enabled = false
-      const output = await compiler.compile(input);
+//       const output = await compiler.compile(input);
 
-      return output;
-    }
-  );
+//       return output;
+//     }
+//   );
 
 subtask(
     TASK_COMPILE_GET_COMPILATION_TASKS,

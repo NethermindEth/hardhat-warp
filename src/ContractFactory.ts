@@ -17,7 +17,7 @@ export class ContractFactory {
     ) {
       this.interface = ethersContractFactory.interface;
       this.bytecode = ethersContractFactory.bytecode;
-      this.signer = ethersContractFactory.signer;
+      this.signer = ethersContractFactory.signer; // Todo use starknet signers if possible
     }
 
     // @TODO: Future; rename to populateTransaction?
