@@ -6,7 +6,8 @@ import {readFileSync} from 'fs';
 
 function buildCall(contract: Contract, functionAbi: FunctionAbi): AsyncContractFunction {
   return async function(...args: Array<any>): Promise<any> {
-    return contract.call(functionAbi.name, args);
+    const res = await contract.call(functionAbi.name, args);
+    return res[0];
   };
 }
 
