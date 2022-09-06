@@ -16,7 +16,7 @@ import {
   TASK_COMPILE_WARP, TASK_COMPILE_WARP_GET_HASH, TASK_COMPILE_WARP_GET_SOURCE_PATHS, TASK_COMPILE_WARP_GET_WARP_PATH,
   TASK_COMPILE_WARP_MAKE_TYPECHAIN, TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT,
   TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT, TASK_COMPILE_WARP_RUN_BINARY, TASK_DEPLOY_WARP,
-  TASK_DEPLOY_WARP_GET_CAIRO_PATH,
+  TASK_DEPLOY_WARP_GET_CAIRO_PATH, TASK_WRITE_CONTRACT_INFO
 } from './task-names';
 import {Transpiler} from './transpiler';
 import {checkHash, colorLogger, getContract, saveContract, WarpPluginError} from './utils';
@@ -104,7 +104,7 @@ extendConfig(
 subtask(TASK_COMPILE_SOLIDITY_RUN_SOLC)
   .setAction(
     async ({ input, solcPath }: { input: CompilerInput; solcPath: string }) => {
-      
+
       const compiler = new NativeCompiler("/Users/jorik/dev/nethermind/warp/nethersolc/darwin_x64/8/solc");
 
       const output = await compiler.compile(input);
@@ -120,7 +120,8 @@ subtask(
       return [
         TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT,
         ...otherTasks,
-        TASK_COMPILE_WARP,
+        // TASK_COMPILE_WARP,
+        TASK_WRITE_CONTRACT_INFO,
         TASK_COMPILE_WARP_MAKE_TYPECHAIN,
       ];
     },
@@ -172,6 +173,29 @@ subtask(TASK_COMPILE_WARP_GET_HASH)
           return needToCompile;
         },
     );
+
+subtask(TASK_WRITE_CONTRACT_INFO)
+    .setAction( async (_, {run}): Promise<void> => {
+          const warpPath: string = await run(
+              TASK_COMPILE_WARP_GET_WARP_PATH,
+          );
+
+          const sourcePathsWarp: string[] = await run(
+              TASK_COMPILE_WARP_GET_SOURCE_PATHS,
+          );
+
+
+          const transpiler = new Transpiler(warpPath);
+          for (let sourcepath of sourcePathsWarp) {
+            const contractNames = await transpiler.getContractNames(sourcepath);
+            contractNames.map((contractName) => {
+              const contractObj = new ContractInfo(contractName, sourcepath);
+              saveContract(contractObj);
+            });
+          }
+        },
+    );
+
 
 subtask(TASK_COMPILE_WARP_RUN_BINARY)
     .addParam('contract', 'Path to Solidity contract', undefined, types.string, false)
@@ -226,41 +250,41 @@ subtask(TASK_COMPILE_WARP_MAKE_TYPECHAIN,
     },
 );
 
-subtask(TASK_COMPILE_WARP)
-    .setAction(
-        async (_, {run}) => {
-          await run(TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT);
+// subtask(TASK_COMPILE_WARP)
+//     .setAction(
+//         async (_, {run}) => {
+//           await run(TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT);
 
-          const warpPath: string = await run(
-              TASK_COMPILE_WARP_GET_WARP_PATH,
-          );
+//           const warpPath: string = await run(
+//               TASK_COMPILE_WARP_GET_WARP_PATH,
+//           );
 
-          const sourcePathsWarp: string[] = await run(
-              TASK_COMPILE_WARP_GET_SOURCE_PATHS,
-          );
+//           const sourcePathsWarp: string[] = await run(
+//               TASK_COMPILE_WARP_GET_SOURCE_PATHS,
+//           );
 
-          const results = await Promise.all(sourcePathsWarp.map(async (source) => {
-            return await run(
-                TASK_COMPILE_WARP_GET_HASH,
-                {
-                  contract: source,
-                },
-            );
-          }));
+//           const results = await Promise.all(sourcePathsWarp.map(async (source) => {
+//             return await run(
+//                 TASK_COMPILE_WARP_GET_HASH,
+//                 {
+//                   contract: source,
+//                 },
+//             );
+//           }));
 
-          sourcePathsWarp.forEach(async (source, i) => {
-            if (results[i]) {
-              await run(
-                  TASK_COMPILE_WARP_RUN_BINARY,
-                  {
-                    contract: source,
-                    warpPath: warpPath,
-                  },
-              );
-            }
-          });
-        },
-    );
+//           sourcePathsWarp.forEach(async (source, i) => {
+//             if (results[i]) {
+//               await run(
+//                   TASK_COMPILE_WARP_RUN_BINARY,
+//                   {
+//                     contract: source,
+//                     warpPath: warpPath,
+//                   },
+//               );
+//             }
+//           });
+//         },
+//     );
 
 subtask(TASK_DEPLOY_WARP_GET_CAIRO_PATH)
     .addParam('contractName',
