@@ -4,7 +4,7 @@ import BN from 'bn.js';
 import {BigNumberish, Contract as EthersContract,
   ContractFactory as EthersContractFactory,  ContractFunction,  
   PopulatedTransaction,  Signer, Event, ContractInterface, BigNumber} from "ethers";
-import {FunctionFragment, Indexed, Interface, keccak256, ParamType} from 'ethers/lib/utils';
+import {FormatTypes, FunctionFragment, Indexed, Interface, keccak256, ParamType} from 'ethers/lib/utils';
 import {BlockTag, EventFilter, Listener, Provider, TransactionRequest, TransactionResponse} from '@ethersproject/abstract-provider';
 import {parse, TypeNode} from "solc-typed-ast"
 import {decode, encodeValue, encodeValueOuter, SolValue} from './encode';
@@ -147,20 +147,31 @@ export class WarpContract extends EthersContract {
     private argStringifier(arg: any) : SolValue {
       return Array.isArray(arg) ? arg.map(this.argStringifier) : arg.toString();
     }
-    
 
+    private format(paramType: ParamType): string {
+      if (paramType.type === "tuple") {
+        return `tuple(${paramType.components.map(this.format).join(",")})`;
+      } else if (paramType.arrayChildren !== null) {
+        return `${this.format(paramType.arrayChildren)}[${paramType.arrayLength >= 0 ? paramType.arrayLength : ""}]`;
+      } else {
+        return paramType.type;
+      }
+    }
     private buildDefault(solName : string, fragment : FunctionFragment) {
         if (fragment.constant) {
           return this.buildCall(solName, fragment);
         }
 
-      const inputTypeNodes = fragment.inputs.map((tp) => parse(tp.type, {ctx : undefined, version : undefined}) as TypeNode)
+      const inputTypeNodes = fragment.inputs.map((tp) => {
+        const res = parse(this.format(tp), {ctx : undefined, version : undefined}) as TypeNode
+        return res
+      })
 
       const cairoFuncName = solName + "_" + this.interface.getSighash(fragment).slice(2) // Todo finish this keccak (use web3)
       // @ts-ignore
       return async (...args : any[]) => {
         const calldata = args.flatMap((arg, i) => encodeValueOuter(inputTypeNodes[i], this.argStringifier(arg), "we don't care"));
-        // console.log(calldata)
+        console.log(calldata)
         try {
           const invokeOptions = {
               contractAddress: this.starknetContract.address,
@@ -189,13 +200,13 @@ export class WarpContract extends EthersContract {
 
     }
     private buildCall(solName : string, fragment : FunctionFragment) {
-      const inputTypeNodes = fragment.inputs.map((tp) => parse(tp.type, {ctx : undefined, version : undefined}) as TypeNode)
+      const inputTypeNodes = fragment.inputs.map((tp) => parse(this.format(tp), {ctx : undefined, version : undefined}) as TypeNode)
 
       const cairoFuncName = solName + "_" + this.interface.getSighash(fragment).slice(2) // Todo finish this keccak (use web3)
       // @ts-ignore
       return async (...args : any[]) => {
         const calldata = args.flatMap((arg, i) => encodeValueOuter(inputTypeNodes[i], this.argStringifier(arg), "we don't care"));
-        // console.log(calldata)
+        console.log(calldata)
         try {
           const output_before = await this.starknetContract.providerOrAccount.callContract(
             {
@@ -206,8 +217,6 @@ export class WarpContract extends EthersContract {
             { blockIdentifier: 'pending'}
         )
         const output =  this.parseResponse(fragment.outputs, output_before.result)
-          console.log(output_before);
-          console.log(output)
         return output
         } catch (e) {
           if (e instanceof GatewayError) {
