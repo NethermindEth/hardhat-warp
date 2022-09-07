@@ -237,9 +237,9 @@ export class WarpContract extends EthersContract {
       // @ts-ignore
       this[solName] = this.buildDefault(solName, fragment);
 
-      this.functions[funcname] = this.buildDefault(solName, fragment);
+      this.functions[solName] = this.buildDefault(solName, fragment);
 
-      this.callStatic[funcname] = this.buildCall(solName, fragment);
+      this.callStatic[solName] = this.buildCall(solName, fragment);
     }
 
     private parseResponse(returnTypes : ParamType[] | undefined, result : string[]) {
