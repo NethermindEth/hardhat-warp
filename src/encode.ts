@@ -14,6 +14,7 @@ import {
   FunctionType,
   IntType,
   MappingType,
+  parse,
   PointerType,
   StringType,
   TypeNameType,
@@ -23,29 +24,24 @@ import {
 
 export type SolValue = string | SolValue[];
 
-export function paramTypeToTypeNode(ty: ParamType) {
-  // ParamType can only represent types ABI types
-  // TODO: Add support for complex types
-  if (isPrimitiveParam(ty)) {
-    if (ty.baseType.startsWith("uint")) {
-      const width = parseInt(ty.baseType.slice(4), 10);
-      return new IntType(width, false, undefined);
-    } else if (ty.baseType.startsWith("int")) {
-      const width = parseInt(ty.baseType.slice(3), 10);
-      return new IntType(width, true, undefined);
-    } else if (ty.baseType === "address") {
-      return new AddressType(false, undefined);
-    } else if (ty.baseType === "bool") {
-      return new BoolType(undefined);
-    } else if (
-      ty.baseType.startsWith("ufixed") ||
-      ty.baseType.startsWith("fixed")
-    ) {
-      throw new Error("Not Supported");
-    }
+function format(paramType: ParamType): string {
+  if (paramType.type === "tuple") {
+    return `tuple(${paramType.components.map(format).join(",")})`;
+  } else if (paramType.arrayChildren !== null) {
+    return `${format(paramType.arrayChildren)}[${
+      paramType.arrayLength >= 0 ? paramType.arrayLength : ""
+    }]`;
+  } else {
+    return paramType.type;
   }
+}
 
-  throw new Error(`Cannot convert ParamType ${ty} to TypeNode`);
+export function paramTypeToTypeNode(ty: ParamType) {
+  const res = parse(format(ty), {
+    ctx: undefined,
+    version: undefined,
+  }) as TypeNode;
+  return res;
 }
 
 export function encodeValueOuter(
