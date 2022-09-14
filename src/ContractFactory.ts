@@ -1,9 +1,10 @@
 import {ContractFactory as StarknetContractFactory} from 'starknet';
-import {BigNumber, BytesLike, ContractFactory as EthersContractFactory, Signer, Contract as EthersContract} from 'ethers';
+import {BigNumber, BytesLike, ContractFactory as EthersContractFactory, Signer, Contract as EthersContract, BigNumberish} from 'ethers';
 import {Interface} from "@ethersproject/abi";
 import {TransactionRequest} from "@ethersproject/abstract-provider";
 import {ContractInterface} from "@ethersproject/contracts";
 import {WarpContract} from './Contract';
+import {BN} from 'bn.js';
 
 export class ContractFactory {
     readonly interface: Interface;
@@ -26,9 +27,19 @@ export class ContractFactory {
       return this.ethersContractFactory.getDeployTransaction(...args);
     }
 
+    debignumber(args: Array<any>): any {
+      return args.map((arg) => {
+        if (Array.isArray(arg)) return arg.map(this.debignumber)
+        if (arg instanceof Object && arg._isBigNumber) {
+          return arg.toHexString()
+        }
+        return arg
+      });
+    }
+
     async deploy(...args: Array<any>): Promise<EthersContract> {
       // TODO: arg parsing
-      const starknetContract = await this.starknetContractFactory.deploy(args);
+      const starknetContract = await this.starknetContractFactory.deploy(this.debignumber(args));
       const contract = new WarpContract(starknetContract, this.starknetContractFactory, this.ethersContractFactory);
       return contract;
     }
@@ -58,4 +69,12 @@ export class ContractFactory {
     static getContract(address: string, contractInterface: ContractInterface, signer?: Signer): EthersContract {
       throw new Error("getContract not supported")
     }
+}
+
+function toBN(value: BigNumberish) {
+    const hex = BigNumber.from(value).toHexString();
+    if (hex[0] === "-") {
+        return (new BN("-" + hex.substring(3), 16));
+    }
+    return new BN(hex.substring(2), 16);
 }
