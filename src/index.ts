@@ -26,6 +26,8 @@ import {getStarknetContractFactory} from './testing';
 import * as properties from "@ethersproject/properties"
 import * as address from "@ethersproject/address"
 
+const NETHERSOLC_PATH = "/Users/swp/dev/nethermind/warp/nethersolc/darwin_arm64/8/solc";
+
 export class NativeCompiler {
   constructor(private _pathToSolc: string) {}
 
@@ -52,7 +54,7 @@ export class NativeCompiler {
   }
 }
 import {ContractFactory} from './ContractFactory';
-import {exec} from 'child_process';
+import {exec, execSync} from 'child_process';
 
 // Hack to wreck safety
 
@@ -60,11 +62,12 @@ import {exec} from 'child_process';
 extendEnvironment((hre) => {
   //@ts-ignore
   const getContractFactory = hre.ethers.getContractFactory;
+  
+  // console.log(hre.ethers);
   //@ts-ignore
   hre.ethers.getContractFactory = async (name) => {
     const ethersContractFactory = await getContractFactory(name)
     const starknetContractFactory = getStarknetContractFactory(name)
-
     return Promise.resolve(new ContractFactory(starknetContractFactory, ethersContractFactory));
   };
   // @ts-ignore
@@ -105,7 +108,7 @@ subtask(TASK_COMPILE_SOLIDITY_RUN_SOLC)
   .setAction(
     async ({ input, solcPath }: { input: CompilerInput; solcPath: string }) => {
 
-      const compiler = new NativeCompiler("/Users/jorik/dev/nethermind/warp/nethersolc/darwin_x64/8/solc");
+      const compiler = new NativeCompiler(NETHERSOLC_PATH);
 
       const output = await compiler.compile(input);
 

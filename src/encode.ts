@@ -23,11 +23,44 @@ import {
 
 export type SolValue = string | SolValue[];
 
-export function encodeValueOuter(tp: TypeNode, value: SolValue, compilerVersion: string): string[] {
-  return encodeValue(tp, value, compilerVersion)
+export function paramTypeToTypeNode(ty: ParamType) {
+  // ParamType can only represent types ABI types
+  // TODO: Add support for complex types
+  if (isPrimitiveParam(ty)) {
+    if (ty.baseType.startsWith("uint")) {
+      const width = parseInt(ty.baseType.slice(4), 10);
+      return new IntType(width, false, undefined);
+    } else if (ty.baseType.startsWith("int")) {
+      const width = parseInt(ty.baseType.slice(3), 10);
+      return new IntType(width, true, undefined);
+    } else if (ty.baseType === "address") {
+      return new AddressType(false, undefined);
+    } else if (ty.baseType === "bool") {
+      return new BoolType(undefined);
+    } else if (
+      ty.baseType.startsWith("ufixed") ||
+      ty.baseType.startsWith("fixed")
+    ) {
+      throw new Error("Not Supported");
+    }
+  }
+
+  throw new Error(`Cannot convert ParamType ${ty} to TypeNode`);
 }
 
-export function encodeValue(tp: TypeNode, value: SolValue, compilerVersion: string): string[] {
+export function encodeValueOuter(
+  tp: TypeNode,
+  value: SolValue,
+  compilerVersion: string
+): string[] {
+  return encodeValue(tp, value, compilerVersion);
+}
+
+export function encodeValue(
+  tp: TypeNode,
+  value: SolValue,
+  compilerVersion: string
+): string[] {
   if (tp instanceof IntType) {
     return encodeAsUintOrFelt(tp, value, tp.nBits);
   } else if (tp instanceof ArrayType) {
@@ -173,7 +206,7 @@ export function bigintToTwosComplement(val: bigint, width: number): bigint {
   }
 }
 
-export function isPrimitiveParam(type: ParamType) : boolean {
+export function isPrimitiveParam(type: ParamType): boolean {
   return type.indexed === null && type.components === null;
 }
 
@@ -186,7 +219,8 @@ export function decode(types: ParamType[], outputs: string[]) {
 
   if (types.length === 1) {
     return decoded[0];
-  } return {...namedMembers, ...decoded};
+  }
+  return { ...namedMembers, ...decoded };
 }
 
 export function decode_(
@@ -195,11 +229,11 @@ export function decode_(
 ): Result {
   return types.map((ty) => {
     if (isPrimitiveParam(ty)) {
-      return decodePrimitive(ty.baseType, outputs)
+      return decodePrimitive(ty.baseType, outputs);
     } else {
       return decodeComplex(ty, outputs);
     }
-  })
+  });
 }
 
 function decodePrimitive(
@@ -228,7 +262,9 @@ function decodePrimitive(
     throw new Error("Not Supported");
   }
   if (typeString.startsWith("bytes")) {
-    return typeString.length === 5 ? decodeBytes(outputs) : decodeFixedBytes(outputs, parseInt(typeString.slice(5)))
+    return typeString.length === 5
+      ? decodeBytes(outputs)
+      : decodeFixedBytes(outputs, parseInt(typeString.slice(5)));
   }
   return 1n;
 }
@@ -237,8 +273,8 @@ function readFelt(outputs: IterableIterator<string>): bigint {
   return BigInt(outputs.next().value);
 }
 
-function useNumberIfSafe(n : bigint, width : number) : BigNumber | number {
-    return (width <= 48) ? Number(n) : BigNumber.from(n);
+function useNumberIfSafe(n: bigint, width: number): BigNumber | number {
+  return width <= 48 ? Number(n) : BigNumber.from(n);
 }
 
 function readUint(outputs: IterableIterator<string>): bigint {
@@ -250,12 +286,24 @@ function readUint(outputs: IterableIterator<string>): bigint {
 function decodeUint(
   nbits: number,
   outputs: IterableIterator<string>
-): BigNumber | number{
-  return useNumberIfSafe(nbits < 256 ? readFelt(outputs) : readUint(outputs), nbits)
+): BigNumber | number {
+  return useNumberIfSafe(
+    nbits < 256 ? readFelt(outputs) : readUint(outputs),
+    nbits
+  );
 }
 
-function decodeInt(nbits: number, outputs: IterableIterator<string>): BigNumber | number {
-  return useNumberIfSafe(twosComplementToBigInt(nbits < 256 ? BigInt(readFelt(outputs)) : readUint(outputs), nbits), nbits);
+function decodeInt(
+  nbits: number,
+  outputs: IterableIterator<string>
+): BigNumber | number {
+  return useNumberIfSafe(
+    twosComplementToBigInt(
+      nbits < 256 ? BigInt(readFelt(outputs)) : readUint(outputs),
+      nbits
+    ),
+    nbits
+  );
 }
 
 function decodeBytes(outputs: IterableIterator<string>): bigint {
@@ -268,8 +316,14 @@ function decodeBytes(outputs: IterableIterator<string>): bigint {
   return result;
 }
 
-function decodeFixedBytes(outputs: IterableIterator<string>, length: number) : BigNumber | number {
-  return useNumberIfSafe((length < 32) ? readFelt(outputs) : readUint(outputs), length * 8)
+function decodeFixedBytes(
+  outputs: IterableIterator<string>,
+  length: number
+): BigNumber | number {
+  return useNumberIfSafe(
+    length < 32 ? readFelt(outputs) : readUint(outputs),
+    length * 8
+  );
 }
 
 export function twosComplementToBigInt(val: bigint, width: number): bigint {
@@ -325,7 +379,7 @@ export function getWidthOf(type: ParamType): number {
     const width = parseInt(type.baseType.slice(4), 10);
     return width * 8;
   } else if (
-    type.baseType.startsWith("fixed") ||
+    type.baseType.startsWith("ufixed") ||
     type.baseType.startsWith("fixed")
   ) {
     throw new Error("Not Supported");
