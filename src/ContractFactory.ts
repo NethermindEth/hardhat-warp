@@ -13,19 +13,24 @@ import { ContractInterface } from "@ethersproject/contracts";
 import { WarpContract } from "./Contract";
 import { BN } from "bn.js";
 import { encodeValueOuter, paramTypeToTypeNode } from "./encode";
+import { readFileSync } from "fs";
+import { getStarknetContractFactory } from "./testing";
 
 export class ContractFactory {
   readonly interface: Interface;
   readonly bytecode: string;
   readonly signer: Signer;
+  pathToCairoFile: string;
 
   constructor(
     private starknetContractFactory: StarknetContractFactory,
-    private ethersContractFactory: EthersContractFactory
+    private ethersContractFactory: EthersContractFactory,
+    pathToCairoFile: string
   ) {
     this.interface = ethersContractFactory.interface;
     this.bytecode = ethersContractFactory.bytecode;
     this.signer = ethersContractFactory.signer; // Todo use starknet signers if possible
+    this.pathToCairoFile = pathToCairoFile;
   }
 
   // @TODO: Future; rename to populateTransaction?
@@ -46,7 +51,35 @@ export class ContractFactory {
     });
   }
 
+  getContractsToDeclare() {
+    const declareRegex = /#\s@declare\s(.*)/;
+    const cairoFile = readFileSync(this.pathToCairoFile, "utf-8");
+    const lines = cairoFile.split("\n");
+
+    const declares = lines
+      .map((l) => {
+        const ma = l.match(declareRegex);
+        return ma ? ma[1] : null;
+      })
+      .filter((d): d is string => !!d);
+
+    return declares.map((v) => v.split("__").slice(-1)[0].split(".")[0]);
+  }
+
   async deploy(...args: Array<any>): Promise<EthersContract> {
+    const contractsToDeclare = this.getContractsToDeclare()
+    console.log(contractsToDeclare);
+    const fact = contractsToDeclare.map((c) =>
+      getStarknetContractFactory(c)
+    );
+    await Promise.all(fact.map((c) => {
+      //@ts-ignore;
+      this.starknetContractFactory.providerOrAccount.declareContract({
+        contract: c.compiledContract,
+      });
+    }));
+    console.log("Declared");
+
     const inputs = args
       .map((x) => x.toString())
       .flatMap((solValue, i) =>
@@ -63,6 +96,7 @@ export class ContractFactory {
       this.starknetContractFactory,
       this.ethersContractFactory
     );
+    console.log("deployed");
     return contract;
   }
 

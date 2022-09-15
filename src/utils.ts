@@ -17,6 +17,11 @@ export function colorLogger(str: any) {
 export function checkHash(hash: HashInfo) {
   const hashes = [hash];
   let needToCompile = true;
+
+  if (!fs.existsSync('warp_output')) {
+    fs.mkdirSync('warp_output');
+  }
+
   if (fs.existsSync('warp_output/hash.json')) {
     const readData = fs.readFileSync('warp_output/hash.json', 'utf-8');
     const existingData = JSON.parse(readData) as HashInfo[];
@@ -33,10 +38,6 @@ export function checkHash(hash: HashInfo) {
     });
   }
 
-  if (!fs.existsSync('warp_output')) {
-    fs.mkdirSync('warp_output');
-  }
-
   fs.writeFileSync('warp_output/hash.json', JSON.stringify(hashes));
   return needToCompile;
 }
@@ -47,7 +48,7 @@ export function saveContract(contract: ContractInfo) {
     const readData = fs.readFileSync('warp_output/contracts.json', 'utf-8');
     const existingData = JSON.parse(readData) as ContractInfo[];
     existingData.forEach((ctr) => {
-      const temp = new ContractInfo('', '');
+      const temp = new ContractInfo('', '', []);
       Object.assign(temp, ctr);
       if (temp.getName() !== contract.getName()) contracts.push(temp);
     });

@@ -68,7 +68,9 @@ extendEnvironment((hre) => {
   hre.ethers.getContractFactory = async (name) => {
     const ethersContractFactory = await getContractFactory(name)
     const starknetContractFactory = getStarknetContractFactory(name)
-    return Promise.resolve(new ContractFactory(starknetContractFactory, ethersContractFactory));
+    const contract = getContract(name);
+    const cairoFile = contract.getCairoFile().slice(0, -6).concat('.cairo');
+    return Promise.resolve(new ContractFactory(starknetContractFactory, ethersContractFactory, cairoFile));
   };
   // @ts-ignore
   hre.ethers.provider.formatter.address = (address: string): string => {

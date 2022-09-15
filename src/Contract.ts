@@ -17,10 +17,12 @@ export class ContractInfo {
   private solidityFile: string;
   private deployedAddress = '';
   private deployTxHash = '';
+  private cairoFiles: string[];
 
-  constructor(name: string, solidityFile: string) {
+  constructor(name: string, solidityFile: string, cairoFile: string[] = []) {
     this.name = name;
     this.solidityFile = solidityFile;
+    this.cairoFiles = cairoFile;
   }
 
   getName() {
