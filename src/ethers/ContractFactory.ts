@@ -12,9 +12,9 @@ import { TransactionRequest } from "@ethersproject/abstract-provider";
 import { ContractInterface } from "@ethersproject/contracts";
 import { WarpContract } from "./Contract";
 import { BN } from "bn.js";
-import { encodeValueOuter, paramTypeToTypeNode } from "./encode";
+import { encodeValueOuter, paramTypeToTypeNode } from "../encode";
 import { readFileSync } from "fs";
-import { getStarknetContractFactory } from "./testing";
+import { getStarknetContractFactory } from "../testing";
 
 export class ContractFactory {
   readonly interface: Interface;

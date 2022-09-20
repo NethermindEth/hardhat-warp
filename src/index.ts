@@ -10,7 +10,7 @@ import {CompilerInput, HardhatConfig, HardhatUserConfig} from 'hardhat/types';
 import path from 'path';
 import {runTypeChain} from 'typechain';
 
-import {ContractInfo} from './Contract';
+import {ContractInfo} from './ethers/Contract';
 import {HashInfo} from './Hash';
 import {
   TASK_COMPILE_WARP, TASK_COMPILE_WARP_GET_HASH, TASK_COMPILE_WARP_GET_SOURCE_PATHS, TASK_COMPILE_WARP_GET_WARP_PATH,
@@ -53,14 +53,13 @@ export class NativeCompiler {
     return JSON.parse(output);
   }
 }
-import {ContractFactory} from './ContractFactory';
+import {ContractFactory} from './ethers/ContractFactory';
 import {exec, execSync} from 'child_process';
 
 // Hack to wreck safety
 
-// @ts-ignore
 extendEnvironment((hre) => {
-  //@ts-ignore
+  //@ts-ignore hre doesn't contain the ethers type information which is set by hardhat
   const getContractFactory = hre.ethers.getContractFactory;
   
   // console.log(hre.ethers);
@@ -74,6 +73,19 @@ extendEnvironment((hre) => {
   };
   // @ts-ignore
   hre.ethers.provider.formatter.address = (address: string): string => {
+    try {
+      const addressVal = BigInt(address)
+      if (addressVal >= 2 ** 251) {
+        throw new Error(`Address is not a valid starknet address ${address}`)
+      }
+      return address
+    } catch {
+        throw new Error(`Address is not a valid starknet address ${address}`)
+    }
+  }
+
+  // @ts-ignore
+  hre.ethers.provider.formatter.hash = (address: string): string => {
     try {
       const addressVal = BigInt(address)
       if (addressVal >= 2 ** 251) {
