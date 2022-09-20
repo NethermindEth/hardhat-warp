@@ -6,7 +6,7 @@ import {BigNumberish, Contract as EthersContract,
 import {FunctionFragment, Indexed, ParamType} from 'ethers/lib/utils';
 import {BlockTag, EventFilter, Listener, Provider, Log, TransactionRequest, TransactionResponse} from '@ethersproject/abstract-provider';
 import {parse, TypeNode} from "solc-typed-ast"
-import {decode, encodeValueOuter, SolValue} from './encode';
+import {decode, encodeValueOuter, SolValue} from '../encode';
 import {FIELD_PRIME} from 'starknet/dist/constants';
 
 

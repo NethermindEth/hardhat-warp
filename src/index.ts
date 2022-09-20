@@ -10,7 +10,7 @@ import {CompilerInput, HardhatConfig, HardhatUserConfig} from 'hardhat/types';
 import path from 'path';
 import {runTypeChain} from 'typechain';
 
-import {ContractInfo} from './Contract';
+import {ContractInfo} from './ethers/Contract';
 import {HashInfo} from './Hash';
 import {
   TASK_COMPILE_WARP, TASK_COMPILE_WARP_GET_HASH, TASK_COMPILE_WARP_GET_SOURCE_PATHS, TASK_COMPILE_WARP_GET_WARP_PATH,
@@ -53,7 +53,7 @@ export class NativeCompiler {
     return JSON.parse(output);
   }
 }
-import {ContractFactory} from './ContractFactory';
+import {ContractFactory} from './ethers/ContractFactory';
 import {exec, execSync} from 'child_process';
 
 // Hack to wreck safety

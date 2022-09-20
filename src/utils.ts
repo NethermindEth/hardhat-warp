@@ -1,6 +1,6 @@
 import {NomicLabsHardhatPluginError} from 'hardhat/plugins';
 import 'colors';
-import {ContractInfo} from './Contract';
+import {ContractInfo} from './ethers/Contract';
 import {HashInfo} from './Hash';
 import * as fs from 'fs';
 
