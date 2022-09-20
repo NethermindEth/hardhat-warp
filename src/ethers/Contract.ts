@@ -208,7 +208,6 @@ export class WarpContract extends EthersContract {
       // @ts-ignore
       return async (...args : any[]) => {
         const calldata = args.flatMap((arg, i) => encodeValueOuter(inputTypeNodes[i], this.argStringifier(arg), "we don't care"));
-        console.log(calldata)
         try {
           const output_before = await this.starknetContract.providerOrAccount.callContract(
             {
@@ -256,29 +255,31 @@ export class WarpContract extends EthersContract {
     }
 
     private async toEtheresTransactionResponse({transaction_hash}: InvokeFunctionResponse, data: string): Promise<ContractTransaction> {
-      console.log(this.starknetProvider)
       const txStatus = await this.starknetProvider.getTransactionStatus(transaction_hash)
+      const txTrace = await this.starknetProvider.getTransactionTrace(transaction_hash)
 
-      if (txStatus.tx_status === "REJECTED" || txStatus.tx_status === "NOT_RECEIVED") {
+      if (txStatus.tx_status === "NOT_RECEIVED") {
         // Handle failure case
         throw new Error("Failed transactions not supported yet")
       }
       const txResponse = await this.starknetProvider.getTransaction(transaction_hash)
+      if (txStatus.tx_status === "REJECTED") {
+        throw new Error("Starknet reverted transaction: " + (txStatus.tx_failure_reason || ""))
+      }
       const txBlock = await this.starknetProvider.getBlock(txStatus.block_hash)
       const latestBlock = await this.starknetProvider.getBlock()
-
       return {
         hash: txResponse.transaction_hash as string,
         blockNumber: txBlock.block_number,
         confirmations: latestBlock.block_number - txBlock.block_number,
-        from: "Unkown sender", // TODO: Fetch this from the transaction trace,
+        from: txTrace.function_invocation.caller_address,
 
         gasLimit: BigNumber.from(txResponse.max_fee || "0x" + FIELD_PRIME),
         nonce: txResponse.nonce ? parseInt(txResponse.nonce) : -1,
         data: data,
         value: BigNumber.from(-1),
         chainId: -1,
-        wait: async (confirmations: number | undefined) => {
+        wait: async (_: number | undefined) => {
           this.starknetProvider.waitForTransaction(transaction_hash)
           const txStatus = await this.starknetProvider.getTransactionStatus(transaction_hash)
           const txBlock = await this.starknetProvider.getBlock(txStatus.block_hash)
