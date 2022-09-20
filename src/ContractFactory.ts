@@ -97,7 +97,8 @@ export class ContractFactory {
     const contract = new WarpContract(
       starknetContract,
       this.starknetContractFactory,
-      this.ethersContractFactory
+      this.ethersContractFactory,
+      this.pathToCairoFile
     );
     console.log("deployed");
     return contract;
@@ -108,7 +109,8 @@ export class ContractFactory {
     const contract = new WarpContract(
       starknetContract,
       this.starknetContractFactory,
-      this.ethersContractFactory
+      this.ethersContractFactory,
+      this.pathToCairoFile
     );
     return contract;
   }

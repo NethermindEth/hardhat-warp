@@ -22,6 +22,8 @@ import {
   ContractTransaction,
 } from "ethers";
 import { FunctionFragment, Indexed, ParamType } from "ethers/lib/utils";
+import {id as keccak} from "@ethersproject/hash";
+import { EventFragment } from "@ethersproject/abi";
 import {
   BlockTag,
   EventFilter,
@@ -30,10 +32,13 @@ import {
   Log,
   TransactionRequest,
   TransactionResponse,
+  Block,
 } from "@ethersproject/abstract-provider";
 import { parse, TypeNode } from "solc-typed-ast";
 import { decode, encodeValueOuter, SolValue } from "./encode";
 import { FIELD_PRIME } from "starknet/dist/constants";
+import { starknetKeccak } from "starknet/dist/utils/hash";
+import {readFileSync} from "fs";
 
 const ASSERT_ERROR = "An ASSERT_EQ instruction failed";
 
@@ -93,11 +98,17 @@ export class WarpContract extends EthersContract {
   // address if an ENS name was used in the constructor
   readonly resolvedAddress: Promise<string>;
 
+  snTopicToName: {[key :string]: string} = {};
+  // ethTopic here referes to the keccak of "event_name + selector"
+  // because that's the mangling that warp produces
+  private ethTopicToEvent: {[key: string]: [EventFragment, string]} = {};
+
   private starknetProvider: SequencerProvider;
   constructor(
     private starknetContract: StarknetContract,
     private starknetContractFactory: StarknetContractFactory,
-    private ethersContractFactory: EthersContractFactory
+    private ethersContractFactory: EthersContractFactory,
+    private pathToCairoFile: string,
   ) {
     super(
       starknetContract.address,
@@ -112,12 +123,29 @@ export class WarpContract extends EthersContract {
     this._deployedPromise = Promise.resolve(this);
     this.starknetProvider = starknetContract.providerOrAccount as SequencerProvider;
     this.solidityCairoRemap();
+
+    const compiledCairo = JSON.parse(readFileSync(this.getCompiledCairoFile(), 'utf-8'));
+    let eventsJson = compiledCairo?.abi?.filter((data: {[key: string]: any}) => data?.type === "event");
+    eventsJson = eventsJson.map((e: any) => ({topic: starknetKeccak(e?.name), ...e}));
+    eventsJson.forEach((e: any) => {
+      this.snTopicToName[e.topic] = e.name;
+    })
+
+    Object.entries(this.ethersContractFactory.interface.events).forEach(([eventName, eventFragment]) => {
+      const selector =keccak(eventFragment.format("sighash")); 
+      const warpTopic = `${eventName}_${selector.slice(2)}`;
+      this.ethTopicToEvent[warpTopic] = [eventFragment, selector];
+    })
   }
   static getContractAddress(transaction: {
     from: string;
     nonce: BigNumberish;
   }): string {
     throw new Error("Not implemented yet");
+  }
+
+  getCompiledCairoFile() {
+    return this.pathToCairoFile.slice(0, -6).concat("_compiled.json");
   }
 
   // @TODO: Allow timeout?
@@ -359,7 +387,7 @@ export class WarpContract extends EthersContract {
       data: data,
       value: BigNumber.from(-1),
       chainId: -1,
-      wait: async (confirmations: number | undefined) => {
+      wait: async (confirmations: number | undefined): Promise<ContractReceipt> => {
         this.starknetProvider.waitForTransaction(transaction_hash);
         const txStatus = await this.starknetProvider.getTransactionStatus(
           transaction_hash
@@ -375,7 +403,7 @@ export class WarpContract extends EthersContract {
         )) as InvokeTransactionReceiptResponse;
         const latestBlock = await this.starknetProvider.getBlock();
 
-        const ethLogs = this.starknetEventsToEthLogs(txReceipt.events, txBlock.block_number, txBlock.block_hash, -1);
+        const ethEvents = this.starknetEventsToEthEvents(txReceipt.events, txBlock.block_number, txBlock.block_hash, -1, transaction_hash);
 
         return Promise.resolve({
           to: txTrace.function_invocation.contract_address,
@@ -408,11 +436,11 @@ export class WarpContract extends EthersContract {
           effectiveGasPrice: BigNumber.from(txReceipt.actual_fee),
 
           logsBloom: "", // TODO: error on access,
-          logs: ethLogs,
-          events: [], // TODO
+          logs: ethEvents,
+          events: ethEvents,
           byzantium: true,
           type: 0, // TODO: check this is the right format
-        });
+        } as ContractReceipt);
       },
     };
   }
@@ -421,31 +449,45 @@ export class WarpContract extends EthersContract {
     Object.entries(this.interface.functions).forEach(this.wrap.bind(this));
   }
 
-  private starknetEventsToEthLogs(
+  private starknetEventsToEthEvents(
     events: Array<StarkEvent>,
     blockNumber: number,
     blockHash: string,
-    transactionIndex: number
-  ): Array<Log> {
+    transactionIndex: number,
+    transactionHash: string,
+  ): Array<Event> {
+
     return events.map(
       (e, i) =>
-        ({
+      {
+        const currentTopic = e.keys[0];
+        const [eventFragment, selector] = this.ethTopicToEvent[this.snTopicToName[currentTopic]];
+
+        const results = decode(eventFragment.inputs, e.data);
+
+        return {
           blockNumber,
           blockHash,
           transactionIndex,
           removed: false,
           address: e.from_address,
-          data: e.data.join(""),
-          topics: e.keys,
-          transactionHash: "",
+          // abi encoded data
+          data: this.ethersContractFactory.interface._abiCoder.encode(eventFragment.inputs, results),
+          topics: [selector],
+          transactionHash,
           logIndex: i,
-        } as Log)
+
+          event: eventFragment.name,
+          eventSignature: eventFragment.format("sighash"),
+          args: results,
+          removeListener: () => { throw new Error("Duck you") },
+          // TODO: use the functions when they are seperated
+          getBlock: () => Promise.resolve({} as Block),
+          getTransaction: () => Promise.resolve({} as TransactionResponse),
+          getTransactionReceipt: () => Promise.resolve({} as TransactionReceipt),
+        }
+      }
     );
-    // receipt.events
-    // this.ethersContractFactory.interface.events
-    // this.starknetContract.abi
-    // // this.starknetContract.
-    // return []
   }
 }
 
