@@ -203,7 +203,7 @@ export function bigintToTwosComplement(val: bigint, width: number): bigint {
 }
 
 export function isPrimitiveParam(type: ParamType): boolean {
-  return type.indexed === null && type.components === null;
+  return type.indexed === false && type.components === null;
 }
 
 export function decode(types: ParamType[], outputs: string[]) {
@@ -348,7 +348,7 @@ export function decodeComplex(
       result.push(decode_([type.arrayChildren], outputs));
     }
     return result;
-  } else if (type.components.length !== 0) {
+  } else if (type.components !== null) {
     // struct type
     const indexedMembers = type.components.map((m) => decode_([m], outputs));
     const namedMembers: { [key: string]: any } = {};

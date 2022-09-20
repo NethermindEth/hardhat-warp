@@ -22,7 +22,7 @@ import {
   Event,
   BigNumber,
   ContractTransaction,
-} from "ethers";
+} from "../../node_modules/ethers";
 import { EventFragment, FunctionFragment, Indexed, ParamType } from "ethers/lib/utils";
 import {
   BlockTag,
@@ -37,9 +37,10 @@ import {
 } from "@ethersproject/abstract-provider";
 import {id as keccak} from "@ethersproject/hash";
 import { parse, TypeNode } from "solc-typed-ast";
-import { decode, encodeValueOuter, SolValue } from "../encode";
+import { decode, decode_, encodeValueOuter, SolValue } from "../encode";
 import { FIELD_PRIME } from "starknet/dist/constants";
 import {readFileSync} from "fs";
+import {normalizeAddress} from "../utils";
 
 const ASSERT_ERROR = "An ASSERT_EQ instruction failed";
 
@@ -128,14 +129,14 @@ export class WarpContract extends EthersContract {
 
     const compiledCairo = JSON.parse(readFileSync(this.getCompiledCairoFile(), 'utf-8'));
     let eventsJson = compiledCairo?.abi?.filter((data: {[key: string]: any}) => data?.type === "event");
-    eventsJson = eventsJson.map((e: any) => ({topic: starknetKeccak(e?.name), ...e}));
+    eventsJson = eventsJson.map((e: any) => ({topic: `0x${starknetKeccak(e?.name).toString(16)}`, ...e}));
     eventsJson.forEach((e: any) => {
       this.snTopicToName[e.topic] = e.name;
     })
 
     Object.entries(this.ethersContractFactory.interface.events).forEach(([eventName, eventFragment]) => {
       const selector =keccak(eventFragment.format("sighash")); 
-      const warpTopic = `${eventName}_${selector.slice(2)}`;
+      const warpTopic = `${eventName.split("(")[0]}_${selector.slice(2).slice(0,8)}`;
       this.ethTopicToEvent[warpTopic] = [eventFragment, selector];
     })
   }
@@ -260,7 +261,6 @@ export class WarpContract extends EthersContract {
           "we don't care"
         )
       );
-      console.log(calldata);
       try {
         const invokeResponse = await this.starknetContract.providerOrAccount.invokeFunction(
           {
@@ -384,6 +384,7 @@ export class WarpContract extends EthersContract {
     }
     const txBlock = await this.starknetProvider.getBlock(txStatus.block_hash);
     const latestBlock = await this.starknetProvider.getBlock();
+
     return {
       hash: txResponse.transaction_hash as string,
       blockNumber: txBlock.block_number,
@@ -393,7 +394,7 @@ export class WarpContract extends EthersContract {
       gasLimit: BigNumber.from(txResponse.max_fee || "0x" + FIELD_PRIME),
       nonce: txResponse.nonce ? parseInt(txResponse.nonce) : -1,
       data: data,
-      value: BigNumber.from(-1),
+      value: BigNumber.from(0),
       chainId: -1,
       wait: async (_: number | undefined) => {
         this.starknetProvider.waitForTransaction(transaction_hash);
@@ -410,10 +411,12 @@ export class WarpContract extends EthersContract {
           transaction_hash
         )) as InvokeTransactionReceiptResponse;
         const latestBlock = await this.starknetProvider.getBlock();
+        const ethEvents = this.starknetEventsToEthEvents(txReceipt.events, txBlock.block_number, txBlock.block_hash, -1, transaction_hash);
+
         return Promise.resolve({
-          to: txTrace.function_invocation.contract_address,
+          to: normalizeAddress(txTrace.function_invocation.contract_address),
           from: txTrace.function_invocation.caller_address,
-          contractAddress: txTrace.function_invocation.contract_address,
+          contractAddress: normalizeAddress(txTrace.function_invocation.contract_address),
 
           blockHash: txBlock.block_hash,
           blockNumber: txBlock.block_number,
@@ -422,27 +425,14 @@ export class WarpContract extends EthersContract {
           transactionIndex: -1, // TODO: find out how to pull this from starknet
           transactionHash: txReceipt.transaction_hash,
 
-          gasUsed: BigNumber.from(
-            0.05 * txTrace.function_invocation.execution_resources.n_steps +
-              25.6 *
-                txTrace.function_invocation.execution_resources
-                  .builtin_instance_counter.ecdsa_builtin +
-              0.4 *
-                txTrace.function_invocation.execution_resources
-                  .builtin_instance_counter.range_check_builtin +
-              12.8 *
-                txTrace.function_invocation.execution_resources
-                  .builtin_instance_counter.bitwise_builtin +
-              0.4 *
-                txTrace.function_invocation.execution_resources
-                  .builtin_instance_counter.pedersen_builtin
+          gasUsed: BigNumber.from(100
           ), // TODO make accurate
-          cumulativeGasUsed: BigNumber.from(-1), // Doesn't make sense on starknet yet
-          effectiveGasPrice: BigNumber.from(txReceipt.actual_fee),
+          cumulativeGasUsed: BigNumber.from(0), // Doesn't make sense on starknet yet
+          effectiveGasPrice: BigNumber.from(txReceipt?.actual_fee || 0),
 
           logsBloom: "", // TODO: error on access,
-          logs: [], // TODO: parse logs from events,
-          events: [], // TODO
+          logs: ethEvents,
+          events: ethEvents,
           byzantium: true,
           type: 0, // TODO: check this is the right format
         });
@@ -457,7 +447,6 @@ export class WarpContract extends EthersContract {
     transactionIndex: number,
     transactionHash: string,
   ): Array<Event> {
-
     return events.map(
       (e, i) =>
       {
@@ -465,15 +454,16 @@ export class WarpContract extends EthersContract {
         const [eventFragment, selector] = this.ethTopicToEvent[this.snTopicToName[currentTopic]];
 
         const results = decode(eventFragment.inputs, e.data);
+        const resultsArray = decode_(eventFragment.inputs, e.data.values());
 
         return {
           blockNumber,
           blockHash,
           transactionIndex,
           removed: false,
-          address: e.from_address,
+          address: normalizeAddress(e.from_address),
           // abi encoded data
-          data: this.ethersContractFactory.interface._abiCoder.encode(eventFragment.inputs, results),
+          data: this.ethersContractFactory.interface._abiCoder.encode(eventFragment.inputs, resultsArray),
           topics: [selector],
           transactionHash,
           logIndex: i,
