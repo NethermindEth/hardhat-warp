@@ -10,7 +10,7 @@ export function getStarknetContractFactory(contractName: string) {
     compiledContract,
     process.env.STARKNET_PROVIDER_BASE_URL === undefined ?
         defaultProvider :
-        new Provider({baseUrl: process.env.STARKNET_PROVIDER_BASE_URL}),
+        new Provider({sequencer: {baseUrl: process.env.STARKNET_PROVIDER_BASE_URL}}),
     compiledContract.abi,
   );
 }

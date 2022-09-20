@@ -1,13 +1,12 @@
 import path from 'path';
-import {GatewayError, ContractFactory as StarknetContractFactory, CallContractResponse, Contract as StarknetContract, ProviderInterface, InvokeFunctionResponse, InvokeTransactionReceiptResponse, } from "starknet";
-import BN from 'bn.js';
+import {GatewayError, Event as StarknetEvent, ContractFactory as StarknetContractFactory, SequencerProvider, Contract as StarknetContract, ProviderInterface, InvokeFunctionResponse, InvokeTransactionReceiptResponse} from "starknet";
 import {BigNumberish, Contract as EthersContract,
   ContractFactory as EthersContractFactory,  ContractFunction,  
-  PopulatedTransaction,  Signer, Event, ContractInterface, BigNumber} from "ethers";
-import {FormatTypes, FunctionFragment, Indexed, Interface, keccak256, ParamType} from 'ethers/lib/utils';
-import {BlockTag, EventFilter, Listener, Provider, TransactionRequest} from '@ethersproject/abstract-provider';
+  PopulatedTransaction,  Signer, Event, BigNumber, ContractTransaction} from "ethers";
+import {FunctionFragment, Indexed, ParamType} from 'ethers/lib/utils';
+import {BlockTag, EventFilter, Listener, Provider, Log, TransactionRequest, TransactionResponse} from '@ethersproject/abstract-provider';
 import {parse, TypeNode} from "solc-typed-ast"
-import {decode, encodeValue, encodeValueOuter, SolValue} from './encode';
+import {decode, encodeValueOuter, SolValue} from './encode';
 import {FIELD_PRIME} from 'starknet/dist/constants';
 
 
@@ -67,7 +66,7 @@ export class WarpContract extends EthersContract {
     // address if an ENS name was used in the constructor
     readonly resolvedAddress: Promise<string>;
 
-    private starknetProvider: ProviderInterface;
+    private starknetProvider: SequencerProvider;
     constructor(private starknetContract : StarknetContract, private starknetContractFactory : StarknetContractFactory, private ethersContractFactory : EthersContractFactory) {
       super(
         starknetContract.address, ethersContractFactory.interface, ethersContractFactory.signer)
@@ -77,7 +76,7 @@ export class WarpContract extends EthersContract {
       this.populateTransaction = starknetContract.populateTransaction;
       this.resolvedAddress = Promise.resolve(starknetContract.address);
       this._deployedPromise = Promise.resolve(this);
-      this.starknetProvider = starknetContract.providerOrAccount as ProviderInterface;
+      this.starknetProvider = starknetContract.providerOrAccount as SequencerProvider;
       this.solidityCairoRemap()
     }
 
@@ -254,60 +253,67 @@ export class WarpContract extends EthersContract {
       );
     }
 
-    private async toEtheresTransactionResponse(transactionResponse: InvokeFunctionResponse, data: string): Promise<ContractTransaction> {
-      await this.starknetProvider.waitForTransaction(transactionResponse.transaction_hash)
-      const getTransactionResponse = await this.starknetProvider.getTransaction(transactionResponse.transaction_hash)
-      const transactionReceipt = await this.starknetProvider.getTransactionReceipt(transactionResponse.transaction_hash) as InvokeTransactionReceiptResponse;
-      transactionReceipt.events
-      if (getTransactionResponse.status === "REJECTED" || getTransactionResponse.status === "NOT_RECEIVED" || getTransactionResponse.status === "RECEIVED") {
+    private async toEtheresTransactionResponse({transaction_hash}: InvokeFunctionResponse, data: string): Promise<ContractTransaction> {
+      const txStatus = await this.starknetProvider.getTransactionStatus(transaction_hash)
+
+      if (txStatus.tx_status === "REJECTED" || txStatus.tx_status === "NOT_RECEIVED") {
         // Handle failure case
         throw new Error("Failed transactions not supported yet")
-      } else {
-        const invokeFunctionResponse = getTransactionResponse.transaction as InvokeFunctionTransactionResponse;
+      }
+      const txResponse = await this.starknetProvider.getTransaction(transaction_hash)
+      const txBlock = await this.starknetProvider.getBlock(txStatus.block_hash)
+      const latestBlock = await this.starknetProvider.getBlock()
 
-        const invokeFunctionReceipt = await this.starknetProvider.getTransactionReceipt(transactionResponse.transaction_hash) as SuccessfulTransactionReceiptResponse;
-        console.log("events", invokeFunctionReceipt.events)
-        return {
-          hash: transactionResponse.transaction_hash,
+      return {
+        hash: txResponse.transaction_hash as string,
+        blockNumber: txBlock.block_number,
+        confirmations: latestBlock.block_number - txBlock.block_number,
+        from: "Unkown sender", // TODO: Fetch this from the transaction trace,
 
-          blockNumber: getTransactionResponse.block_number as number, // TODO: this doesn't work for 'pending' and 'latest'
+        gasLimit: BigNumber.from(txResponse.max_fee || "0x" + FIELD_PRIME),
+        nonce: txResponse.nonce ? parseInt(txResponse.nonce) : -1,
+        data: data,
+        value: BigNumber.from(-1),
+        chainId: -1,
+        wait: async (confirmations: number | undefined) => {
+          this.starknetProvider.waitForTransaction(transaction_hash)
+          const txStatus = await this.starknetProvider.getTransactionStatus(transaction_hash)
+          const txBlock = await this.starknetProvider.getBlock(txStatus.block_hash)
+          const txTrace = await this.starknetProvider.getTransactionTrace(transaction_hash)
+          const txReceipt = await this.starknetProvider.getTransactionReceipt(transaction_hash) as InvokeTransactionReceiptResponse;
+          const latestBlock = await this.starknetProvider.getBlock()
+          return Promise.resolve({
+            to: txTrace.function_invocation.contract_address,
+            from: txTrace.function_invocation.caller_address,
+            contractAddress: txTrace.function_invocation.contract_address,
 
-          confirmations: getTransactionResponse.status === "PENDING" ? 0 : Infinity,
+            blockHash: txBlock.block_hash,
+            blockNumber: txBlock.block_number,
+            confirmations: latestBlock.block_number - txBlock.block_number,
 
-          from: "Unkown sender", // TODO: Fetch this from the transaction trace,
+            transactionIndex: -1, // TODO: find out how to pull this from starknet
+            transactionHash: txReceipt.transaction_hash,
 
-          wait: (confirmations: number | undefined) => {
-            this.starknetProvider.waitForTransaction(transactionResponse.transaction_hash)
-            return Promise.resolve({
-              to: invokeFunctionResponse.contract_address,
-              from: "Unkown sender", // TODO: get sender from trace
-              contractAddress: invokeFunctionResponse.contract_address,
-              transactionIndex: getTransactionResponse.transaction_index,
-              gasUsed: BigNumber.from(invokeFunctionReceipt.execution_resources.n_steps), // TODO make accurate
-              logsBloom: "", // TODO: error on access,
-              blockHash: invokeFunctionReceipt.block_hash,
-              transactionHash: invokeFunctionReceipt.transaction_hash,
-              logs: [], // TODO: parse logs from events,
-              events: [], // TODO
-              blockNumber: invokeFunctionReceipt.block_number as number,
-              confirmations: 9999999,
-              cumulativeGasUsed: BigNumber.from(invokeFunctionReceipt.execution_resources.n_steps),
-              effectiveGasPrice: BigNumber.from(invokeFunctionReceipt.actual_fee),
-              byzantium: true,
-              type: 0 // TODO: check this is the right format
-            })
-          },
+            gasUsed: BigNumber.from(
+              0.05  * txTrace.function_invocation.execution_resources.n_steps + 
+              25.60 * txTrace.function_invocation.execution_resources.builtin_instance_counter.ecdsa_builtin +
+              0.40  * txTrace.function_invocation.execution_resources.builtin_instance_counter.range_check_builtin +
+              12.80 * txTrace.function_invocation.execution_resources.builtin_instance_counter.bitwise_builtin +
+              0.40  * txTrace.function_invocation.execution_resources.builtin_instance_counter.pedersen_builtin,
+            ), // TODO make accurate
+            cumulativeGasUsed: BigNumber.from(-1), // Doesn't make sense on starknet yet
+            effectiveGasPrice: BigNumber.from(txReceipt.actual_fee),
 
-          gasLimit: BigNumber.from(invokeFunctionResponse.max_fee || "0x" + FIELD_PRIME),
-          nonce: invokeFunctionResponse.nonce?.valueOf() as number || -1,
-          data: data,
-          value: BigNumber.from(-1),
-          chainId: -1,
-        }
+            logsBloom: "", // TODO: error on access,
+            logs: [], // TODO: parse logs from events,
+            events: [], // TODO
+            byzantium: true,
+            type: 0 // TODO: check this is the right format
+          })
+        },
       }
     }
-    private starknetEventsToEthLogs(receipt: ): Array<Event> {
-      receipt.events
+    private starknetEventsToEthLogs(starknetEvent: StarknetEvent[]): Log[] {
       this.ethersContractFactory.interface.events
       this.starknetContract.abi
       // this.starknetContract.
@@ -315,99 +321,3 @@ export class WarpContract extends EthersContract {
     }
 }
 
-
-export interface Transaction {
-    hash?: string;
-
-    to?: string;
-    from?: string;
-    nonce: number;
-
-    gasLimit: BigNumber;
-    gasPrice?: BigNumber;
-
-    data: string;
-    value: BigNumber;
-    chainId: number;
-
-    r?: string;
-    s?: string;
-    v?: number;
-
-    // Typed-Transaction features
-    type?: number | null;
-
-    // EIP-2930; Type 1 & EIP-1559; Type 2
-    accessList?: AccessList;
-
-    // EIP-1559; Type 2
-    maxPriorityFeePerGas?: BigNumber;
-    maxFeePerGas?: BigNumber;
-}
-
-
-export interface ContractTransaction extends TransactionResponse {
-    wait(confirmations?: number): Promise<ContractReceipt>;
-}
-
-export interface ContractReceipt extends TransactionReceipt {
-    events?: Array<Event>;
-}
-
-export interface TransactionResponse extends Transaction {
-    hash: string;
-
-    // Only if a transaction has been mined
-    blockNumber?: number,
-    blockHash?: string,
-    timestamp?: number,
-
-    confirmations: number,
-
-    // Not optional (as it is in Transaction)
-    from: string;
-
-    // The raw transaction
-    raw?: string,
-
-    // This function waits until the transaction has been mined
-    wait: (confirmations?: number) => Promise<TransactionReceipt>
-};
-
-export interface TransactionReceipt {
-    to: string;
-    from: string;
-    contractAddress: string,
-    transactionIndex: number,
-    root?: string,
-    gasUsed: BigNumber,
-    logsBloom: string,
-    blockHash: string,
-    transactionHash: string,
-    logs: Array<Log>,
-    blockNumber: number,
-    confirmations: number,
-    cumulativeGasUsed: BigNumber,
-    effectiveGasPrice: BigNumber,
-    byzantium: boolean,
-    type: number;
-    status?: number
-};
-
-export interface Log {
-    blockNumber: number;
-    blockHash: string;
-    transactionIndex: number;
-
-    removed: boolean;
-
-    address: string;
-    data: string;
-
-    topics: Array<string>;
-
-    transactionHash: string;
-    logIndex: number;
-}
-
-export type AccessList = Array<{ address: string, storageKeys: Array<string> }>;
