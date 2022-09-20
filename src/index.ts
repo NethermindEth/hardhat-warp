@@ -58,9 +58,8 @@ import {exec, execSync} from 'child_process';
 
 // Hack to wreck safety
 
-// @ts-ignore
 extendEnvironment((hre) => {
-  //@ts-ignore
+  //@ts-ignore hre doesn't contain the ethers type information which is set by hardhat
   const getContractFactory = hre.ethers.getContractFactory;
   
   // console.log(hre.ethers);
