@@ -1,5 +1,5 @@
 import path from 'path';
-import {GatewayError, ContractFactory as StarknetContractFactory, CallContractResponse, SuccessfulTransactionResponse, Contract as StarknetContract, AddTransactionResponse, InvokeFunctionTransactionResponse, ProviderInterface, SuccessfulTransactionReceiptResponse} from "starknet";
+import {GatewayError, ContractFactory as StarknetContractFactory, CallContractResponse, Contract as StarknetContract, ProviderInterface, InvokeFunctionResponse, InvokeTransactionReceiptResponse, } from "starknet";
 import BN from 'bn.js';
 import {BigNumberish, Contract as EthersContract,
   ContractFactory as EthersContractFactory,  ContractFunction,  
@@ -179,18 +179,14 @@ export class WarpContract extends EthersContract {
         console.log(calldata)
         try {
           const invokeOptions = {
-              contractAddress: this.starknetContract.address,
-              calldata,
-              entrypoint: cairoFuncName,
-            };
-          const output_before = await this.starknetContract.providerOrAccount.callContract(invokeOptions,
-            { blockIdentifier: 'pending'}
-        )
-        const output =  this.parseResponse(fragment.outputs, output_before.result)
-        // Do an invoke to make state change
-        const invokeResponse = await this.starknetContract.providerOrAccount.invokeFunction(invokeOptions);
-        await this.starknetContract.providerOrAccount.waitForTransaction(invokeResponse.transaction_hash);
-        return output
+            contractAddress: this.starknetContract.address,
+            calldata,
+            entrypoint: cairoFuncName,
+          };
+          // Do an invoke to make state change
+          const invokeResponse = await this.starknetContract.providerOrAccount.invokeFunction(invokeOptions);
+          await this.starknetContract.providerOrAccount.waitForTransaction(invokeResponse.transaction_hash);
+          return this.toEtheresTransactionResponse(invokeResponse, this.ethersContractFactory.interface.encodeFunctionData(fragment, args))
         } catch (e) {
           if (e instanceof GatewayError) {
             if (e.message.includes(ASSERT_ERROR)) {
@@ -219,7 +215,7 @@ export class WarpContract extends EthersContract {
               calldata,
               entrypoint: cairoFuncName,
             },
-            { blockIdentifier: 'pending'}
+            'pending'
         )
         const output =  this.parseResponse(fragment.outputs, output_before.result)
         return output
@@ -258,16 +254,19 @@ export class WarpContract extends EthersContract {
       );
     }
 
-    private async toEtheresTransactionResponse(transactionResponse: AddTransactionResponse, data: string): Promise<TransactionResponse> {
+    private async toEtheresTransactionResponse(transactionResponse: InvokeFunctionResponse, data: string): Promise<ContractTransaction> {
       await this.starknetProvider.waitForTransaction(transactionResponse.transaction_hash)
       const getTransactionResponse = await this.starknetProvider.getTransaction(transactionResponse.transaction_hash)
+      const transactionReceipt = await this.starknetProvider.getTransactionReceipt(transactionResponse.transaction_hash) as InvokeTransactionReceiptResponse;
+      transactionReceipt.events
       if (getTransactionResponse.status === "REJECTED" || getTransactionResponse.status === "NOT_RECEIVED" || getTransactionResponse.status === "RECEIVED") {
         // Handle failure case
         throw new Error("Failed transactions not supported yet")
       } else {
         const invokeFunctionResponse = getTransactionResponse.transaction as InvokeFunctionTransactionResponse;
 
-        const invokeFunctionRecepit = await this.starknetProvider.getTransactionReceipt(transactionResponse.transaction_hash) as SuccessfulTransactionReceiptResponse;
+        const invokeFunctionReceipt = await this.starknetProvider.getTransactionReceipt(transactionResponse.transaction_hash) as SuccessfulTransactionReceiptResponse;
+        console.log("events", invokeFunctionReceipt.events)
         return {
           hash: transactionResponse.transaction_hash,
 
@@ -284,15 +283,16 @@ export class WarpContract extends EthersContract {
               from: "Unkown sender", // TODO: get sender from trace
               contractAddress: invokeFunctionResponse.contract_address,
               transactionIndex: getTransactionResponse.transaction_index,
-              gasUsed: BigNumber.from(invokeFunctionRecepit.execution_resources.n_steps),
+              gasUsed: BigNumber.from(invokeFunctionReceipt.execution_resources.n_steps), // TODO make accurate
               logsBloom: "", // TODO: error on access,
-              blockHash: invokeFunctionRecepit.block_hash,
-              transactionHash: invokeFunctionRecepit.transaction_hash,
+              blockHash: invokeFunctionReceipt.block_hash,
+              transactionHash: invokeFunctionReceipt.transaction_hash,
               logs: [], // TODO: parse logs from events,
-              blockNumber: invokeFunctionRecepit.block_number as number,
+              events: [], // TODO
+              blockNumber: invokeFunctionReceipt.block_number as number,
               confirmations: 9999999,
-              cumulativeGasUsed: BigNumber.from(invokeFunctionRecepit.execution_resources.n_steps),
-              effectiveGasPrice: BigNumber.from(invokeFunctionRecepit.actual_fee),
+              cumulativeGasUsed: BigNumber.from(invokeFunctionReceipt.execution_resources.n_steps),
+              effectiveGasPrice: BigNumber.from(invokeFunctionReceipt.actual_fee),
               byzantium: true,
               type: 0 // TODO: check this is the right format
             })
@@ -305,6 +305,13 @@ export class WarpContract extends EthersContract {
           chainId: -1,
         }
       }
+    }
+    private starknetEventsToEthLogs(receipt: ): Array<Event> {
+      receipt.events
+      this.ethersContractFactory.interface.events
+      this.starknetContract.abi
+      // this.starknetContract.
+      return []
     }
 }
 
