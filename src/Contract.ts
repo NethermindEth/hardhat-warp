@@ -403,7 +403,6 @@ export class WarpContract extends EthersContract {
         )) as InvokeTransactionReceiptResponse;
         const latestBlock = await this.starknetProvider.getBlock();
 
-        const ethEvents = this.starknetEventsToEthEvents(txReceipt.events, txBlock.block_number, txBlock.block_hash, -1, transaction_hash);
 
         return Promise.resolve({
           to: txTrace.function_invocation.contract_address,
@@ -449,46 +448,6 @@ export class WarpContract extends EthersContract {
     Object.entries(this.interface.functions).forEach(this.wrap.bind(this));
   }
 
-  private starknetEventsToEthEvents(
-    events: Array<StarkEvent>,
-    blockNumber: number,
-    blockHash: string,
-    transactionIndex: number,
-    transactionHash: string,
-  ): Array<Event> {
-
-    return events.map(
-      (e, i) =>
-      {
-        const currentTopic = e.keys[0];
-        const [eventFragment, selector] = this.ethTopicToEvent[this.snTopicToName[currentTopic]];
-
-        const results = decode(eventFragment.inputs, e.data);
-
-        return {
-          blockNumber,
-          blockHash,
-          transactionIndex,
-          removed: false,
-          address: e.from_address,
-          // abi encoded data
-          data: this.ethersContractFactory.interface._abiCoder.encode(eventFragment.inputs, results),
-          topics: [selector],
-          transactionHash,
-          logIndex: i,
-
-          event: eventFragment.name,
-          eventSignature: eventFragment.format("sighash"),
-          args: results,
-          removeListener: () => { throw new Error("Duck you") },
-          // TODO: use the functions when they are seperated
-          getBlock: () => Promise.resolve({} as Block),
-          getTransaction: () => Promise.resolve({} as TransactionResponse),
-          getTransactionReceipt: () => Promise.resolve({} as TransactionReceipt),
-        }
-      }
-    );
-  }
 }
 
 export interface Transaction {
