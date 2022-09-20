@@ -1,5 +1,5 @@
 import path from 'path';
-import {GatewayError, Event as StarknetEvent, ContractFactory as StarknetContractFactory, SequencerProvider, Contract as StarknetContract, ProviderInterface, InvokeFunctionResponse, InvokeTransactionReceiptResponse} from "starknet";
+import {InvocationsDetails, GatewayError, Event as StarknetEvent, ContractFactory as StarknetContractFactory, SequencerProvider, Contract as StarknetContract, ProviderInterface, InvokeFunctionResponse, InvokeTransactionReceiptResponse} from "starknet";
 import {BigNumberish, Contract as EthersContract,
   ContractFactory as EthersContractFactory,  ContractFunction,  
   PopulatedTransaction,  Signer, Event, BigNumber, ContractTransaction} from "ethers";
@@ -76,7 +76,8 @@ export class WarpContract extends EthersContract {
       this.populateTransaction = starknetContract.populateTransaction;
       this.resolvedAddress = Promise.resolve(starknetContract.address);
       this._deployedPromise = Promise.resolve(this);
-      this.starknetProvider = starknetContract.providerOrAccount as SequencerProvider;
+      // @ts-ignore
+      this.starknetProvider = starknetContract.providerOrAccount.provider as SequencerProvider;
       this.solidityCairoRemap()
     }
 
@@ -165,27 +166,28 @@ export class WarpContract extends EthersContract {
         if (fragment.constant) {
           return this.buildCall(solName, fragment);
         }
+        return this.buildInvoke(solName, fragment);
+    }
 
+    private buildInvoke(solName : string, fragment : FunctionFragment) {
       const inputTypeNodes = fragment.inputs.map((tp) => {
         const res = parse(this.format(tp), {ctx : undefined, version : undefined}) as TypeNode
         return res
       })
-
       const cairoFuncName = solName + "_" + this.interface.getSighash(fragment).slice(2) // Todo finish this keccak (use web3)
-      // @ts-ignore
+
       return async (...args : any[]) => {
         const calldata = args.flatMap((arg, i) => encodeValueOuter(inputTypeNodes[i], this.argStringifier(arg), "we don't care"));
         console.log(calldata)
         try {
-          const invokeOptions = {
+          const invokeResponse = await this.starknetContract.providerOrAccount.invokeFunction({
             contractAddress: this.starknetContract.address,
             calldata,
             entrypoint: cairoFuncName,
-          };
-          // Do an invoke to make state change
-          const invokeResponse = await this.starknetContract.providerOrAccount.invokeFunction(invokeOptions);
-          await this.starknetContract.providerOrAccount.waitForTransaction(invokeResponse.transaction_hash);
-          return this.toEtheresTransactionResponse(invokeResponse, this.ethersContractFactory.interface.encodeFunctionData(fragment, args))
+          }, {});
+          return this.toEtheresTransactionResponse(
+            invokeResponse, this.ethersContractFactory.interface.encodeFunctionData(fragment, args)
+          )
         } catch (e) {
           if (e instanceof GatewayError) {
             if (e.message.includes(ASSERT_ERROR)) {
@@ -196,7 +198,7 @@ export class WarpContract extends EthersContract {
             throw e;
           }
         }
-      };
+      }
 
     }
     private buildCall(solName : string, fragment : FunctionFragment) {
@@ -254,6 +256,7 @@ export class WarpContract extends EthersContract {
     }
 
     private async toEtheresTransactionResponse({transaction_hash}: InvokeFunctionResponse, data: string): Promise<ContractTransaction> {
+      console.log(this.starknetProvider)
       const txStatus = await this.starknetProvider.getTransactionStatus(transaction_hash)
 
       if (txStatus.tx_status === "REJECTED" || txStatus.tx_status === "NOT_RECEIVED") {
