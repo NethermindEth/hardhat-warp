@@ -26,7 +26,7 @@ import {getStarknetContractFactory} from './testing';
 import * as properties from "@ethersproject/properties"
 import * as address from "@ethersproject/address"
 
-const NETHERSOLC_PATH = "/Users/swp/dev/nethermind/warp/nethersolc/darwin_arm64/8/solc";
+const NETHERSOLC_PATH = "/Users/jorik/dev/nethermind/warp/nethersolc/darwin_x64/8/solc";
 
 export class NativeCompiler {
   constructor(private _pathToSolc: string) {}

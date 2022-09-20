@@ -1,13 +1,14 @@
 import path from 'path';
-import {GatewayError, ContractFactory as StarknetContractFactory, CallContractResponse,Contract as StarknetContract} from "starknet";
+import {GatewayError, ContractFactory as StarknetContractFactory, CallContractResponse, SuccessfulTransactionResponse, Contract as StarknetContract, AddTransactionResponse, InvokeFunctionTransactionResponse, ProviderInterface, SuccessfulTransactionReceiptResponse} from "starknet";
 import BN from 'bn.js';
 import {BigNumberish, Contract as EthersContract,
   ContractFactory as EthersContractFactory,  ContractFunction,  
   PopulatedTransaction,  Signer, Event, ContractInterface, BigNumber} from "ethers";
 import {FormatTypes, FunctionFragment, Indexed, Interface, keccak256, ParamType} from 'ethers/lib/utils';
-import {BlockTag, EventFilter, Listener, Provider, TransactionRequest, TransactionResponse} from '@ethersproject/abstract-provider';
+import {BlockTag, EventFilter, Listener, Provider, TransactionRequest} from '@ethersproject/abstract-provider';
 import {parse, TypeNode} from "solc-typed-ast"
 import {decode, encodeValue, encodeValueOuter, SolValue} from './encode';
+import {FIELD_PRIME} from 'starknet/dist/constants';
 
 
 const ASSERT_ERROR = "An ASSERT_EQ instruction failed"
@@ -66,6 +67,7 @@ export class WarpContract extends EthersContract {
     // address if an ENS name was used in the constructor
     readonly resolvedAddress: Promise<string>;
 
+    private starknetProvider: ProviderInterface;
     constructor(private starknetContract : StarknetContract, private starknetContractFactory : StarknetContractFactory, private ethersContractFactory : EthersContractFactory) {
       super(
         starknetContract.address, ethersContractFactory.interface, ethersContractFactory.signer)
@@ -75,6 +77,7 @@ export class WarpContract extends EthersContract {
       this.populateTransaction = starknetContract.populateTransaction;
       this.resolvedAddress = Promise.resolve(starknetContract.address);
       this._deployedPromise = Promise.resolve(this);
+      this.starknetProvider = starknetContract.providerOrAccount as ProviderInterface;
       this.solidityCairoRemap()
     }
 
@@ -254,4 +257,150 @@ export class WarpContract extends EthersContract {
         this.wrap.bind(this)
       );
     }
+
+    private async toEtheresTransactionResponse(transactionResponse: AddTransactionResponse, data: string): Promise<TransactionResponse> {
+      await this.starknetProvider.waitForTransaction(transactionResponse.transaction_hash)
+      const getTransactionResponse = await this.starknetProvider.getTransaction(transactionResponse.transaction_hash)
+      if (getTransactionResponse.status === "REJECTED" || getTransactionResponse.status === "NOT_RECEIVED" || getTransactionResponse.status === "RECEIVED") {
+        // Handle failure case
+        throw new Error("Failed transactions not supported yet")
+      } else {
+        const invokeFunctionResponse = getTransactionResponse.transaction as InvokeFunctionTransactionResponse;
+
+        const invokeFunctionRecepit = await this.starknetProvider.getTransactionReceipt(transactionResponse.transaction_hash) as SuccessfulTransactionReceiptResponse;
+        return {
+          hash: transactionResponse.transaction_hash,
+
+          blockNumber: getTransactionResponse.block_number as number, // TODO: this doesn't work for 'pending' and 'latest'
+
+          confirmations: getTransactionResponse.status === "PENDING" ? 0 : Infinity,
+
+          from: "Unkown sender", // TODO: Fetch this from the transaction trace,
+
+          wait: (confirmations: number | undefined) => {
+            this.starknetProvider.waitForTransaction(transactionResponse.transaction_hash)
+            return Promise.resolve({
+              to: invokeFunctionResponse.contract_address,
+              from: "Unkown sender", // TODO: get sender from trace
+              contractAddress: invokeFunctionResponse.contract_address,
+              transactionIndex: getTransactionResponse.transaction_index,
+              gasUsed: BigNumber.from(invokeFunctionRecepit.execution_resources.n_steps),
+              logsBloom: "", // TODO: error on access,
+              blockHash: invokeFunctionRecepit.block_hash,
+              transactionHash: invokeFunctionRecepit.transaction_hash,
+              logs: [], // TODO: parse logs from events,
+              blockNumber: invokeFunctionRecepit.block_number as number,
+              confirmations: 9999999,
+              cumulativeGasUsed: BigNumber.from(invokeFunctionRecepit.execution_resources.n_steps),
+              effectiveGasPrice: BigNumber.from(invokeFunctionRecepit.actual_fee),
+              byzantium: true,
+              type: 0 // TODO: check this is the right format
+            })
+          },
+
+          gasLimit: BigNumber.from(invokeFunctionResponse.max_fee || "0x" + FIELD_PRIME),
+          nonce: invokeFunctionResponse.nonce?.valueOf() as number || -1,
+          data: data,
+          value: BigNumber.from(-1),
+          chainId: -1,
+        }
+      }
+    }
 }
+
+
+export interface Transaction {
+    hash?: string;
+
+    to?: string;
+    from?: string;
+    nonce: number;
+
+    gasLimit: BigNumber;
+    gasPrice?: BigNumber;
+
+    data: string;
+    value: BigNumber;
+    chainId: number;
+
+    r?: string;
+    s?: string;
+    v?: number;
+
+    // Typed-Transaction features
+    type?: number | null;
+
+    // EIP-2930; Type 1 & EIP-1559; Type 2
+    accessList?: AccessList;
+
+    // EIP-1559; Type 2
+    maxPriorityFeePerGas?: BigNumber;
+    maxFeePerGas?: BigNumber;
+}
+
+
+export interface ContractTransaction extends TransactionResponse {
+    wait(confirmations?: number): Promise<ContractReceipt>;
+}
+
+export interface ContractReceipt extends TransactionReceipt {
+    events?: Array<Event>;
+}
+
+export interface TransactionResponse extends Transaction {
+    hash: string;
+
+    // Only if a transaction has been mined
+    blockNumber?: number,
+    blockHash?: string,
+    timestamp?: number,
+
+    confirmations: number,
+
+    // Not optional (as it is in Transaction)
+    from: string;
+
+    // The raw transaction
+    raw?: string,
+
+    // This function waits until the transaction has been mined
+    wait: (confirmations?: number) => Promise<TransactionReceipt>
+};
+
+export interface TransactionReceipt {
+    to: string;
+    from: string;
+    contractAddress: string,
+    transactionIndex: number,
+    root?: string,
+    gasUsed: BigNumber,
+    logsBloom: string,
+    blockHash: string,
+    transactionHash: string,
+    logs: Array<Log>,
+    blockNumber: number,
+    confirmations: number,
+    cumulativeGasUsed: BigNumber,
+    effectiveGasPrice: BigNumber,
+    byzantium: boolean,
+    type: number;
+    status?: number
+};
+
+export interface Log {
+    blockNumber: number;
+    blockHash: string;
+    transactionIndex: number;
+
+    removed: boolean;
+
+    address: string;
+    data: string;
+
+    topics: Array<string>;
+
+    transactionHash: string;
+    logIndex: number;
+}
+
+export type AccessList = Array<{ address: string, storageKeys: Array<string> }>;
