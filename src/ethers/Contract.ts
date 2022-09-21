@@ -327,6 +327,7 @@ export class WarpContract extends EthersContract {
       } catch (e) {
         if (e instanceof GatewayError) {
           if (e.message.includes(ASSERT_ERROR)) {
+            throw new Error("Starknet reverted transaction: " + e.message);
           } else {
             throw e;
           }
@@ -372,12 +373,12 @@ export class WarpContract extends EthersContract {
     );
 
     if (txStatus.tx_status === "NOT_RECEIVED") {
-      // Handle failure case
       throw new Error("Failed transactions not supported yet");
     }
     const txResponse = await this.starknetProvider.getTransaction(
       transaction_hash
     );
+    // Handle failure case
     if (txStatus.tx_status === "REJECTED") {
       throw new Error(
         "Starknet reverted transaction: " + (JSON.stringify(txStatus.tx_failure_reason) || "")
