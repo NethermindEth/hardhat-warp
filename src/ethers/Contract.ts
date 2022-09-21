@@ -41,6 +41,7 @@ import { decode, decode_, encodeValueOuter, SolValue } from "../encode";
 import { FIELD_PRIME } from "starknet/dist/constants";
 import {readFileSync} from "fs";
 import {normalizeAddress} from "../utils";
+import {abiEncode} from "../abiEncode";
 
 const ASSERT_ERROR = "An ASSERT_EQ instruction failed";
 
@@ -220,7 +221,7 @@ export class WarpContract extends EthersContract {
     throw new Error("Not implemented yet");
   }
 
-  private argStringifier(arg: any): SolValue {
+  public argStringifier(arg: any): SolValue {
     return Array.isArray(arg) ? arg.map(this.argStringifier) : arg.toString();
   }
 
@@ -254,6 +255,7 @@ export class WarpContract extends EthersContract {
       solName + "_" + this.interface.getSighash(fragment).slice(2); // Todo finish this keccak (use web3)
 
     return async (...args: any[]) => {
+      console.log({cairoFuncName})
       const calldata = args.flatMap((arg, i) =>
         encodeValueOuter(
           inputTypeNodes[i],
@@ -262,6 +264,7 @@ export class WarpContract extends EthersContract {
         )
       );
       try {
+        console.log("INVOKE FUNCTION")
         const invokeResponse = await this.starknetContract.providerOrAccount.invokeFunction(
           {
             contractAddress: this.starknetContract.address,
@@ -270,12 +273,10 @@ export class WarpContract extends EthersContract {
           },
           {}
         );
+        console.log("Before to etheresTransaction")
         return this.toEtheresTransactionResponse(
           invokeResponse,
-          this.ethersContractFactory.interface.encodeFunctionData(
-            fragment,
-            args
-          )
+          abiEncode(fragment.inputs, args.map(a => this.argStringifier(a)))
         );
       } catch (e) {
         if (e instanceof GatewayError) {
@@ -379,12 +380,13 @@ export class WarpContract extends EthersContract {
     );
     if (txStatus.tx_status === "REJECTED") {
       throw new Error(
-        "Starknet reverted transaction: " + (txStatus.tx_failure_reason || "")
+        "Starknet reverted transaction: " + (JSON.stringify(txStatus.tx_failure_reason) || "")
       );
     }
     const txBlock = await this.starknetProvider.getBlock(txStatus.block_hash);
     const latestBlock = await this.starknetProvider.getBlock();
 
+    console.log("To ethers conversion happened")
     return {
       hash: txResponse.transaction_hash as string,
       blockNumber: txBlock.block_number,
@@ -413,6 +415,7 @@ export class WarpContract extends EthersContract {
         const latestBlock = await this.starknetProvider.getBlock();
         const ethEvents = this.starknetEventsToEthEvents(txReceipt.events, txBlock.block_number, txBlock.block_hash, -1, transaction_hash);
 
+        console.log("Encode is done")
         return Promise.resolve({
           to: normalizeAddress(txTrace.function_invocation.contract_address),
           from: txTrace.function_invocation.caller_address,
@@ -455,7 +458,7 @@ export class WarpContract extends EthersContract {
 
         const results = decode(eventFragment.inputs, e.data);
         const resultsArray = decode_(eventFragment.inputs, e.data.values());
-
+        console.log("Going to encode");
         return {
           blockNumber,
           blockHash,

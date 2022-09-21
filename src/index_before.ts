@@ -15,6 +15,7 @@ providers.Formatter.prototype.address = function(address: string): string {
   }
 }
 
+
 // @ts-ignore
 address.getAddress = (address: string): string => {
   try {
