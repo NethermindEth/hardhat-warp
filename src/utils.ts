@@ -3,6 +3,8 @@ import "colors";
 import { ContractInfo } from "./ethers/Contract";
 import { HashInfo } from "./Hash";
 import * as fs from "fs";
+import * as os from 'os';
+import * as path from 'path';
 
 export class WarpPluginError extends NomicLabsHardhatPluginError {
   constructor(message: string, parent?: Error, shouldBeReported?: boolean) {
@@ -10,7 +12,7 @@ export class WarpPluginError extends NomicLabsHardhatPluginError {
   }
 }
 
-export function colorLogger(str: any) {
+export function colorLogger(str: string) {
   console.log(str.blue.bold);
 }
 
@@ -87,4 +89,28 @@ export function normalizeAddress(address: string): string {
   // For some reason starknet-devnet does not zero padd thier addresses
   // For some reason starknet zero pads their addresses
   return `0x${address.split("x")[1].padStart(64, "0")}`;
+}
+
+
+/////////////// nethersolc
+
+type SupportedPlatforms = 'linux_x64' | 'darwin_x64' | 'darwin_arm64';
+export type SupportedSolcVersions = '7' | '8';
+
+function getPlatform(): SupportedPlatforms {
+  const platform = `${os.platform()}_${os.arch()}`;
+
+  switch (platform) {
+    case 'linux_x64':
+    case 'darwin_x64':
+    case 'darwin_arm64':
+      return platform;
+    default:
+      throw new Error(`Unsupported plaform ${platform}`);
+  }
+}
+
+export function nethersolcPath(version: SupportedSolcVersions): string {
+  const platform = getPlatform();
+  return path.resolve(__dirname, '..', 'node_modules', 'nethersolc', platform, version, 'solc');
 }

@@ -13,24 +13,24 @@ import {runTypeChain} from 'typechain';
 import {ContractInfo} from './ethers/Contract';
 import {HashInfo} from './Hash';
 import {
-  TASK_COMPILE_WARP, TASK_COMPILE_WARP_GET_HASH, TASK_COMPILE_WARP_GET_SOURCE_PATHS, TASK_COMPILE_WARP_GET_WARP_PATH,
+  TASK_COMPILE_WARP_GET_HASH, TASK_COMPILE_WARP_GET_SOURCE_PATHS, TASK_COMPILE_WARP_GET_WARP_PATH,
   TASK_COMPILE_WARP_MAKE_TYPECHAIN, TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT,
   TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT, TASK_COMPILE_WARP_RUN_BINARY, TASK_DEPLOY_WARP,
   TASK_DEPLOY_WARP_GET_CAIRO_PATH, TASK_WRITE_CONTRACT_INFO
 } from './task-names';
 import {Transpiler} from './transpiler';
-import {checkHash, colorLogger, getContract, saveContract, WarpPluginError} from './utils';
+import {checkHash, colorLogger, getContract, nethersolcPath, saveContract, WarpPluginError} from './utils';
 
 import { extendEnvironment } from "hardhat/config";
 import {getStarknetContractFactory} from './testing';
-import * as properties from "@ethersproject/properties"
-import * as address from "@ethersproject/address"
 
-const NETHERSOLC_PATH = "/Users/swp/dev/nethermind/warp/nethersolc/darwin_arm64/8/solc";
+import {ContractFactory} from './ethers/ContractFactory';
+import {exec} from 'child_process';
 
 export class NativeCompiler {
   constructor(private _pathToSolc: string) {}
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public async compile(input: any) {
     const output: string = await new Promise((resolve, reject) => {
       const process = exec(
@@ -38,6 +38,7 @@ export class NativeCompiler {
         {
           maxBuffer: 1024 * 1024 * 1024 * 1024,
         },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (err: any, stdout: any) => {
           if (err !== null) {
             return reject(err);
@@ -53,17 +54,14 @@ export class NativeCompiler {
     return JSON.parse(output);
   }
 }
-import {ContractFactory} from './ethers/ContractFactory';
-import {exec, execSync} from 'child_process';
 
 // Hack to wreck safety
 
 extendEnvironment((hre) => {
-  //@ts-ignore hre doesn't contain the ethers type information which is set by hardhat
+  // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
   const getContractFactory = hre.ethers.getContractFactory;
   
-  // console.log(hre.ethers);
-  //@ts-ignore
+  // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
   hre.ethers.getContractFactory = async (name) => {
     const ethersContractFactory = await getContractFactory(name)
     const starknetContractFactory = getStarknetContractFactory(name)
@@ -71,7 +69,7 @@ extendEnvironment((hre) => {
     const cairoFile = contract.getCairoFile().slice(0, -6).concat('.cairo');
     return Promise.resolve(new ContractFactory(starknetContractFactory, ethersContractFactory, cairoFile));
   };
-  // @ts-ignore
+  // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
   hre.ethers.provider.formatter.address = (address: string): string => {
     try {
       const addressVal = BigInt(address)
@@ -84,7 +82,7 @@ extendEnvironment((hre) => {
     }
   }
 
-  // @ts-ignore
+  // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
   hre.ethers.provider.formatter.hash = (address: string): string => {
     try {
       const addressVal = BigInt(address)
@@ -120,9 +118,10 @@ extendConfig(
 
 subtask(TASK_COMPILE_SOLIDITY_RUN_SOLC)
   .setAction(
-    async ({ input, solcPath }: { input: CompilerInput; solcPath: string }) => {
+    async ({ input }: { input: CompilerInput; solcPath: string }) => {
 
-      const compiler = new NativeCompiler(NETHERSOLC_PATH);
+      // TODO: support both sol 7 aswell
+      const compiler = new NativeCompiler(nethersolcPath('8'));
 
       const output = await compiler.compile(input);
 
@@ -203,7 +202,7 @@ subtask(TASK_WRITE_CONTRACT_INFO)
 
 
           const transpiler = new Transpiler(warpPath);
-          for (let sourcepath of sourcePathsWarp) {
+          for (const sourcepath of sourcePathsWarp) {
             const contractNames = await transpiler.getContractNames(sourcepath);
             contractNames.map((contractName) => {
               const contractObj = new ContractInfo(contractName, sourcepath);
