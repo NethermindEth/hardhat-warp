@@ -112,5 +112,5 @@ function getPlatform(): SupportedPlatforms {
 
 export function nethersolcPath(version: SupportedSolcVersions): string {
   const platform = getPlatform();
-  return path.resolve(__dirname, '..', 'node_modules', 'nethersolc', platform, version, 'solc');
+  return path.resolve(__dirname, '..', 'node_modules', '@nethermindeth/warp', 'nethersolc', platform, version, 'solc');
 }
