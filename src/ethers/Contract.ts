@@ -261,32 +261,21 @@ export class WarpContract extends EthersContract {
           "we don't care"
         )
       );
-      try {
-        const invokeResponse = await this.starknetContract.providerOrAccount.invokeFunction(
-          {
-            contractAddress: this.starknetContract.address,
-            calldata,
-            entrypoint: cairoFuncName,
-          },
-          {}
-        );
-        return this.toEtheresTransactionResponse(
-          invokeResponse,
-          this.ethersContractFactory.interface.encodeFunctionData(
-            fragment,
-            args
-          )
-        );
-      } catch (e) {
-        if (e instanceof GatewayError) {
-          if (e.message.includes(ASSERT_ERROR)) {
-          } else {
-            throw e;
-          }
-        } else {
-          throw e;
-        }
-      }
+      const invokeResponse = await this.starknetContract.providerOrAccount.invokeFunction(
+        {
+          contractAddress: this.starknetContract.address,
+          calldata,
+          entrypoint: cairoFuncName,
+        },
+        {}
+      );
+      return this.toEtheresTransactionResponse(
+        invokeResponse,
+        this.ethersContractFactory.interface.encodeFunctionData(
+          fragment,
+          args
+        )
+      );
     };
   }
   private buildCall(solName: string, fragment: FunctionFragment) {
@@ -326,6 +315,7 @@ export class WarpContract extends EthersContract {
       } catch (e) {
         if (e instanceof GatewayError) {
           if (e.message.includes(ASSERT_ERROR)) {
+            throw new Error("Starknet reverted transaction: " + e.message);
           } else {
             throw e;
           }
@@ -371,12 +361,12 @@ export class WarpContract extends EthersContract {
     );
 
     if (txStatus.tx_status === "NOT_RECEIVED") {
-      // Handle failure case
       throw new Error("Failed transactions not supported yet");
     }
     const txResponse = await this.starknetProvider.getTransaction(
       transaction_hash
     );
+    // Handle failure case
     if (txStatus.tx_status === "REJECTED") {
       throw new Error(
         "Starknet reverted transaction: " + (txStatus.tx_failure_reason || "")
