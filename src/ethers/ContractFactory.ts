@@ -72,12 +72,10 @@ export class ContractFactory {
     const fact = contractsToDeclare.map((c) =>
       getStarknetContractFactory(c)
     );
-    await Promise.all(fact.map((c) => {
-      //@ts-ignore;
+    await Promise.all(fact.map((c) =>
       this.starknetContractFactory.providerOrAccount.declareContract({
         contract: c.compiledContract,
-      });
-    }));
+    })));
     console.log("Declared");
 
     const inputs = args
