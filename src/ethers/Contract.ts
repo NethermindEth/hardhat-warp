@@ -274,9 +274,12 @@ export class WarpContract extends EthersContract {
           {}
         );
         console.log("Before to etheresTransaction")
+        const abiEncodedInputs = abiEncode(fragment.inputs, args.map(a => this.argStringifier(a)))
+        const sigHash = this.ethersContractFactory.interface.getSighash(fragment);
+        const data = sigHash.concat(abiEncodedInputs.substring(2));
         return this.toEtheresTransactionResponse(
           invokeResponse,
-          abiEncode(fragment.inputs, args.map(a => this.argStringifier(a)))
+          data
         );
       } catch (e) {
         if (e instanceof GatewayError) {
