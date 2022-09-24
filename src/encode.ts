@@ -203,7 +203,9 @@ export function bigintToTwosComplement(val: bigint, width: number): bigint {
 }
 
 export function isPrimitiveParam(type: ParamType): boolean {
-  return type.indexed === false && type.components === null;
+  // because why use types in a sensisble manner?
+  // indexed can be false or null for primitive types
+  return (type.indexed === false || type.indexed === null) && type.components === null;
 }
 
 export function decode(types: ParamType[], outputs: string[]) {
