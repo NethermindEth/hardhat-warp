@@ -1,4 +1,12 @@
-import { ContractFactory as StarknetContractFactory } from "starknet";
+import {
+  Account,
+  ContractFactory as StarknetContractFactory,
+  DeclareContractResponse,
+} from "starknet";
+import { getKeyPair } from "starknet/dist/utils/ellipticCurve";
+import { ec as EC, curves } from "elliptic";
+import { CONSTANT_POINTS, EC_ORDER, FIELD_PRIME } from "../constants";
+import hashJS from "hash.js";
 import {
   BigNumber,
   BytesLike,
@@ -15,12 +23,18 @@ import { BN } from "bn.js";
 import { encodeValueOuter, paramTypeToTypeNode } from "../encode";
 import { readFileSync } from "fs";
 import { getStarknetContractFactory } from "../testing";
+import {
+  getStarkNetDevNetAccounts,
+  StarknetDevnetGetAccountsResponse,
+} from "../utils";
 
 export class ContractFactory {
   readonly interface: Interface;
   readonly bytecode: string;
   readonly signer: Signer;
   pathToCairoFile: string;
+
+  starknetAccount: Account | null = null;
 
   constructor(
     private starknetContractFactory: StarknetContractFactory,
@@ -52,10 +66,9 @@ export class ContractFactory {
   }
 
   getContractsToDeclare() {
-    const declareRegex = /#\s@declare\s(.*)/;
+    const declareRegex = /\/\/\s@declare\s(.*)/;
     const cairoFile = readFileSync(this.pathToCairoFile, "utf-8");
     const lines = cairoFile.split("\n");
-
     const declares = lines
       .map((l) => {
         const ma = l.match(declareRegex);
@@ -66,16 +79,47 @@ export class ContractFactory {
     return declares.map((v) => v.split("__").slice(-1)[0].split(".")[0]);
   }
 
-  async deploy(...args: Array<any>): Promise<EthersContract> {
-    const contractsToDeclare = this.getContractsToDeclare()
-    console.log(contractsToDeclare);
-    const fact = contractsToDeclare.map((c) =>
-      getStarknetContractFactory(c)
+  async connectStarkNetDevNetAccounts() {
+    const defaultEC = new EC(
+      new curves.PresetCurve({
+        type: "short",
+        prime: null,
+        p: FIELD_PRIME,
+        a:
+          "00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000001",
+        b:
+          "06f21413 efbe40de 150e596d 72f7a8c5 609ad26c 15c915c1 f4cdfcb9 9cee9e89",
+        n: EC_ORDER,
+        hash: hashJS.sha256,
+        gRed: false,
+        g: CONSTANT_POINTS[1],
+      })
     );
-    await Promise.all(fact.map((c) =>
-      this.starknetContractFactory.providerOrAccount.declareContract({
-        contract: c.compiledContract,
-    })));
+
+    const accounts: Array<StarknetDevnetGetAccountsResponse> = await getStarkNetDevNetAccounts();
+    this.starknetAccount = new Account(
+      this.starknetContractFactory.providerOrAccount,
+      accounts[0].address,
+      getKeyPair(accounts[0].private_key)
+    );
+  }
+
+  async deploy(...args: Array<any>): Promise<EthersContract> {
+    const contractsToDeclare = this.getContractsToDeclare();
+    const fact = contractsToDeclare.map((c) => getStarknetContractFactory(c));
+    const declaredContracts: Array<DeclareContractResponse> = await Promise.all(
+      fact.map((c) =>
+        this.starknetContractFactory.providerOrAccount.declareContract({
+          contract: c.compiledContract,
+        })
+      )
+    );
+    await this.starknetContractFactory.providerOrAccount.waitForTransaction(
+      declaredContracts[0].transaction_hash
+    );
+    declaredContracts.forEach((element) => {
+      console.log(`\nCLASS HASH ${element.class_hash}\n`);
+    });
     console.log("Declared");
 
     const inputs = args
@@ -89,10 +133,12 @@ export class ContractFactory {
       );
 
     const starknetContract = await this.starknetContractFactory.deploy(inputs);
-    console.log("deploying", this.pathToCairoFile)
-    console.log(starknetContract.deployTransactionHash)
-    await starknetContract.deployed()
+    console.log("deploying", this.pathToCairoFile);
+    console.log(starknetContract.deployTransactionHash);
+    await starknetContract.deployed();
+    console.log('starknetContract.deployed() finished executing');
     const contract = new WarpContract(
+      this.starknetAccount!,
       starknetContract,
       this.starknetContractFactory,
       this.ethersContractFactory,
@@ -105,6 +151,7 @@ export class ContractFactory {
   attach(address: string): EthersContract {
     const starknetContract = this.starknetContractFactory.attach(address);
     const contract = new WarpContract(
+      this.starknetAccount!,
       starknetContract,
       this.starknetContractFactory,
       this.ethersContractFactory,

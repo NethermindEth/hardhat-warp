@@ -1,3 +1,4 @@
+console.log("HARDHAT_WARP")
 import './type-extensions';
 import * as fs from 'fs';
 import {createHash} from 'crypto';
@@ -67,8 +68,11 @@ extendEnvironment((hre) => {
     const starknetContractFactory = getStarknetContractFactory(name)
     const contract = getContract(name);
     const cairoFile = contract.getCairoFile().slice(0, -6).concat('.cairo');
-    return Promise.resolve(new ContractFactory(starknetContractFactory, ethersContractFactory, cairoFile));
+    const factory = new ContractFactory(starknetContractFactory, ethersContractFactory, cairoFile);
+    await factory.connectStarkNetDevNetAccounts();
+    return Promise.resolve(factory);
   };
+
   // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
   hre.ethers.provider.formatter.address = (address: string): string => {
     try {
@@ -121,6 +125,7 @@ subtask(TASK_COMPILE_SOLIDITY_RUN_SOLC)
     async ({ input }: { input: CompilerInput; solcPath: string }) => {
 
       // TODO: support both sol 7 aswell
+      console.log({nethersolc : nethersolcPath('8')})
       const compiler = new NativeCompiler(nethersolcPath('8'));
 
       const output = await compiler.compile(input);
@@ -132,13 +137,15 @@ subtask(TASK_COMPILE_SOLIDITY_RUN_SOLC)
 subtask(
     TASK_COMPILE_GET_COMPILATION_TASKS,
     async (_, __, runSuper): Promise<string[]> => {
+    console.log("TASK_GET_COMPILATION_TASKS");
       const otherTasks = await runSuper();
+      console.log(otherTasks)
       return [
         TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT,
-        ...otherTasks,
         // TASK_COMPILE_WARP,
         TASK_WRITE_CONTRACT_INFO,
         TASK_COMPILE_WARP_MAKE_TYPECHAIN,
+        //...otherTasks,
       ];
     },
 );

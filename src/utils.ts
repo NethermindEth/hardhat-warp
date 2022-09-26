@@ -1,10 +1,12 @@
 import { NomicLabsHardhatPluginError } from "hardhat/plugins";
+import fetch from "node-fetch";
 import "colors";
 import { ContractInfo } from "./ethers/Contract";
 import { HashInfo } from "./Hash";
 import * as fs from "fs";
-import * as os from 'os';
-import * as path from 'path';
+import * as os from "os";
+import * as path from "path";
+import { execSync } from "child_process";
 
 export class WarpPluginError extends NomicLabsHardhatPluginError {
   constructor(message: string, parent?: Error, shouldBeReported?: boolean) {
@@ -91,19 +93,18 @@ export function normalizeAddress(address: string): string {
   return `0x${address.split("x")[1].padStart(64, "0")}`;
 }
 
-
 /////////////// nethersolc
 
-type SupportedPlatforms = 'linux_x64' | 'darwin_x64' | 'darwin_arm64';
-export type SupportedSolcVersions = '7' | '8';
+type SupportedPlatforms = "linux_x64" | "darwin_x64" | "darwin_arm64";
+export type SupportedSolcVersions = "7" | "8";
 
 function getPlatform(): SupportedPlatforms {
   const platform = `${os.platform()}_${os.arch()}`;
 
   switch (platform) {
-    case 'linux_x64':
-    case 'darwin_x64':
-    case 'darwin_arm64':
+    case "linux_x64":
+    case "darwin_x64":
+    case "darwin_arm64":
       return platform;
     default:
       throw new Error(`Unsupported plaform ${platform}`);
@@ -112,5 +113,33 @@ function getPlatform(): SupportedPlatforms {
 
 export function nethersolcPath(version: SupportedSolcVersions): string {
   const platform = getPlatform();
-  return path.resolve(__dirname, '..', 'node_modules', '@nethermindeth/warp', 'nethersolc', platform, version, 'solc');
+  return path.resolve(
+    __dirname,
+    "..",
+    "node_modules",
+    "@nethermindeth/warp",
+    "nethersolc",
+    platform,
+    version,
+    "solc"
+  );
+}
+
+
+/////////////// starknet-devnet
+
+export type StarknetDevnetGetAccountsResponse = {
+  address: string;
+  initial_balance: number;
+  private_key: string;
+  public_key: string;
+};
+
+export async function getStarkNetDevNetAccounts(): Promise<Array<StarknetDevnetGetAccountsResponse>> {
+  const devnet_feeder_gateway_url: string =
+    process.env.STARKNET_PROVIDER_BASE_URL != undefined
+      ? process.env.STARKNET_PROVIDER_BASE_URL
+      : 'http://127.0.0.1:5050';
+  const response = await fetch(`${devnet_feeder_gateway_url}/predeployed_accounts`, { method: 'GET' });
+  return response.json();
 }
