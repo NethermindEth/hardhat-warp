@@ -97,8 +97,11 @@ export class ContractFactory {
     );
 
     const accounts: Array<StarknetDevnetGetAccountsResponse> = await getStarkNetDevNetAccounts();
-    this.starknetAccount = new Account(
-      this.starknetContractFactory.providerOrAccount,
+    // TODO need to change the way getStarkNetContractFactory is called.
+    this.starknetContractFactory.providerOrAccount = new Account(
+      {
+        sequencer: { baseUrl: process.env.STARKNET_PROVIDER_BASE_URL! },
+      },
       accounts[0].address,
       getKeyPair(accounts[0].private_key)
     );
@@ -106,6 +109,7 @@ export class ContractFactory {
 
   async deploy(...args: Array<any>): Promise<EthersContract> {
     const contractsToDeclare = this.getContractsToDeclare();
+    await this.connectStarkNetDevNetAccounts();
     const fact = contractsToDeclare.map((c) => getStarknetContractFactory(c));
     const declaredContracts: Array<DeclareContractResponse> = await Promise.all(
       fact.map((c) =>
@@ -161,7 +165,8 @@ export class ContractFactory {
   }
 
   connect(signer: Signer) {
-    throw new Error("connect not yet supported");
+    this.starknetContractFactory.connect(this.starknetAccount!)
+    return this;
   }
 
   static fromSolidity(compilerOutput: any, signer?: Signer): ContractFactory {
