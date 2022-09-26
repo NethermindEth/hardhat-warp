@@ -46,7 +46,7 @@ import { parse, TypeNode } from "solc-typed-ast";
 import { decode, decode_, encodeValueOuter, SolValue } from "../encode";
 import { FIELD_PRIME } from "starknet/dist/constants";
 import { readFileSync } from "fs";
-import { normalizeAddress } from "../utils";
+import { colorLogger, normalizeAddress } from "../utils";
 import { abiEncode } from "../abiEncode";
 
 const ASSERT_ERROR = "An ASSERT_EQ instruction failed";
@@ -131,8 +131,7 @@ export class WarpContract extends EthersContract {
     this.populateTransaction = starknetContract.populateTransaction;
     this.resolvedAddress = Promise.resolve(starknetContract.address);
     this._deployedPromise = Promise.resolve(this);
-    this.starknetProvider = starknetContract.providerOrAccount
-      // @ts-ignore
+    this.starknetProvider = starknetContract.providerOrAccount // @ts-ignore
       .provider as SequencerProvider;
     this.solidityCairoRemap();
 
@@ -285,13 +284,34 @@ export class WarpContract extends EthersContract {
       );
       try {
         console.log("INVOKE FUNCTION");
-        const invokeResponse = await this.starknetContract.providerOrAccount.invokeFunction(
+        this.starknetContract = new StarknetContract(
+          this.starknetContract.abi,
+          this.starknetContract.address,
+          this.starknetAccount
+        );
+        this.starknetContract.connect(this.starknetAccount);
+        console.log(
+          `this.starknetContract.functions: ${JSON.stringify(
+            this.starknetContract.functions
+          )}`
+        );
+        // TODO
+        // this.starknetContract.setOwner();
+        const invokeRes: InvokeFunctionResponse = await this.starknetContract.invoke(
+          cairoFuncName,
+          calldata
+        );
+        console.log(`invokeRes: ${JSON.stringify(invokeRes, undefined, 2)}`);
+        const invokeResponse = await this.starknetAccount.execute(
           {
             contractAddress: this.starknetContract.address,
             calldata,
             entrypoint: cairoFuncName,
           },
-          {}
+          undefined,
+          {
+            maxFee: "999999995330000",
+          }
         );
         console.log("Before to etheresTransaction");
         const abiEncodedInputs = abiEncode(

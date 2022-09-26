@@ -105,6 +105,13 @@ export class ContractFactory {
       accounts[0].address,
       getKeyPair(accounts[0].private_key)
     );
+    this.starknetAccount = new Account(
+      {
+        sequencer: { baseUrl: process.env.STARKNET_PROVIDER_BASE_URL! },
+      },
+      accounts[0].address,
+      getKeyPair(accounts[0].private_key)
+    );
   }
 
   async deploy(...args: Array<any>): Promise<EthersContract> {
