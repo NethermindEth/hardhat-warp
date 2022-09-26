@@ -52,7 +52,7 @@ export class ContractFactory {
   }
 
   getContractsToDeclare() {
-    const declareRegex = /#\s@declare\s(.*)/;
+    const declareRegex = /\/\/\s@declare\s(.*)/;
     const cairoFile = readFileSync(this.pathToCairoFile, "utf-8");
     const lines = cairoFile.split("\n");
 
