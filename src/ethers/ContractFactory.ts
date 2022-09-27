@@ -174,6 +174,8 @@ export class ContractFactory {
 
   connect(signer: Signer) {
     this.starknetContractFactory.connect(this.starknetAccount!);
+    console.log('connected')
+    console.log(`this.starknetAccount: ${JSON.stringify(this.starknetAccount)}`);
     return this;
   }
 
