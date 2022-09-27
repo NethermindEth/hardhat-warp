@@ -284,12 +284,12 @@ export class WarpContract extends EthersContract {
       );
       try {
         console.log("INVOKE FUNCTION");
-        this.starknetContract = new StarknetContract(
-          this.starknetContract.abi,
-          this.starknetContract.address,
-          this.starknetAccount
-        );
-        this.starknetContract.connect(this.starknetAccount);
+        // this.starknetContract = new StarknetContract(
+        //   this.starknetContract.abi,
+        //   this.starknetContract.address,
+        //   this.starknetAccount
+        // );
+        // this.starknetContract.connect(this.starknetAccount);
         console.log(
           `this.starknetContract.functions: ${JSON.stringify(
             this.starknetContract.functions
@@ -297,11 +297,11 @@ export class WarpContract extends EthersContract {
         );
         // TODO
         // this.starknetContract.setOwner();
-        const invokeRes: InvokeFunctionResponse = await this.starknetContract.invoke(
-          cairoFuncName,
-          calldata
-        );
-        console.log(`invokeRes: ${JSON.stringify(invokeRes, undefined, 2)}`);
+        // const invokeRes: InvokeFunctionResponse = await this.starknetContract.invoke(
+        //   cairoFuncName,
+        //   calldata
+        // );
+        // console.log(`invokeRes: ${JSON.stringify(invokeRes, undefined, 2)}`);
         const invokeResponse = await this.starknetAccount.execute(
           {
             contractAddress: this.starknetContract.address,

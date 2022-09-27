@@ -144,8 +144,12 @@ export class ContractFactory {
       );
 
     const starknetContract = await this.starknetContractFactory.deploy(inputs);
+    console.log(
+      `this.starknetContract.functions: ${JSON.stringify(
+        starknetContract.functions
+      )}`
+    );
     console.log("deploying", this.pathToCairoFile);
-    console.log(starknetContract.deployTransactionHash);
     await starknetContract.deployed();
     console.log('starknetContract.deployed() finished executing');
     const contract = new WarpContract(
