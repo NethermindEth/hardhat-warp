@@ -105,13 +105,8 @@ export class ContractFactory {
       accounts[0].address,
       getKeyPair(accounts[0].private_key)
     );
-    this.starknetAccount = new Account(
-      {
-        sequencer: { baseUrl: process.env.STARKNET_PROVIDER_BASE_URL! },
-      },
-      accounts[0].address,
-      getKeyPair(accounts[0].private_key)
-    );
+    this.starknetAccount = this.starknetContractFactory
+      .providerOrAccount as Account;
   }
 
   async deploy(...args: Array<any>): Promise<EthersContract> {
@@ -143,7 +138,9 @@ export class ContractFactory {
         )
       );
 
-    const starknetContract = await this.starknetContractFactory.deploy(inputs);
+    const starknetContract = await this.starknetContractFactory
+      .connect(this.starknetAccount!)
+      .deploy(inputs);
     console.log(
       `this.starknetContract.functions: ${JSON.stringify(
         starknetContract.functions
@@ -151,7 +148,7 @@ export class ContractFactory {
     );
     console.log("deploying", this.pathToCairoFile);
     await starknetContract.deployed();
-    console.log('starknetContract.deployed() finished executing');
+    console.log("starknetContract.deployed() finished executing");
     const contract = new WarpContract(
       this.starknetAccount!,
       starknetContract,
@@ -176,7 +173,7 @@ export class ContractFactory {
   }
 
   connect(signer: Signer) {
-    this.starknetContractFactory.connect(this.starknetAccount!)
+    this.starknetContractFactory.connect(this.starknetAccount!);
     return this;
   }
 

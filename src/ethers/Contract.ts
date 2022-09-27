@@ -1,4 +1,8 @@
 import path from "path";
+import { getKeyPair } from "starknet/dist/utils/ellipticCurve";
+import { ec as EC, curves } from "elliptic";
+import { CONSTANT_POINTS, EC_ORDER, FIELD_PRIME } from "../constants";
+import hashJS from "hash.js";
 import {
   InvocationsDetails,
   GatewayError,
@@ -44,9 +48,13 @@ import {
 import { id as keccak } from "@ethersproject/hash";
 import { parse, TypeNode } from "solc-typed-ast";
 import { decode, decode_, encodeValueOuter, SolValue } from "../encode";
-import { FIELD_PRIME } from "starknet/dist/constants";
 import { readFileSync } from "fs";
-import { colorLogger, normalizeAddress } from "../utils";
+import {
+  colorLogger,
+  getStarkNetDevNetAccounts,
+  normalizeAddress,
+  StarknetDevnetGetAccountsResponse,
+} from "../utils";
 import { abiEncode } from "../abiEncode";
 
 const ASSERT_ERROR = "An ASSERT_EQ instruction failed";
@@ -262,6 +270,35 @@ export class WarpContract extends EthersContract {
     return this.buildInvoke(solName, fragment);
   }
 
+  async connectStarkNetDevNetAccounts() {
+    const defaultEC = new EC(
+      new curves.PresetCurve({
+        type: "short",
+        prime: null,
+        p: FIELD_PRIME,
+        a:
+          "00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000001",
+        b:
+          "06f21413 efbe40de 150e596d 72f7a8c5 609ad26c 15c915c1 f4cdfcb9 9cee9e89",
+        n: EC_ORDER,
+        hash: hashJS.sha256,
+        gRed: false,
+        g: CONSTANT_POINTS[1],
+      })
+    );
+
+    const accounts: Array<StarknetDevnetGetAccountsResponse> = await getStarkNetDevNetAccounts();
+    // TODO need to change the way getStarkNetContractFactory is called.
+    this.starknetContract.providerOrAccount = new Account(
+      {
+        sequencer: { baseUrl: process.env.STARKNET_PROVIDER_BASE_URL! },
+      },
+      accounts[0].address,
+      getKeyPair(accounts[0].private_key)
+    );
+    this.starknetAccount = this.starknetContract.providerOrAccount as Account;
+  }
+
   private buildInvoke(solName: string, fragment: FunctionFragment) {
     const inputTypeNodes = fragment.inputs.map((tp) => {
       const res = parse(this.format(tp), {
@@ -274,6 +311,7 @@ export class WarpContract extends EthersContract {
       solName + "_" + this.interface.getSighash(fragment).slice(2); // Todo finish this keccak (use web3)
 
     return async (...args: any[]) => {
+      await this.connectStarkNetDevNetAccounts();
       console.log({ cairoFuncName });
       const calldata = args.flatMap((arg, i) =>
         encodeValueOuter(
@@ -282,6 +320,7 @@ export class WarpContract extends EthersContract {
           "we don't care"
         )
       );
+      console.log(`calldata: ${calldata}`);
       try {
         console.log("INVOKE FUNCTION");
         // this.starknetContract = new StarknetContract(
@@ -289,12 +328,18 @@ export class WarpContract extends EthersContract {
         //   this.starknetContract.address,
         //   this.starknetAccount
         // );
-        // this.starknetContract.connect(this.starknetAccount);
+        this.starknetContract.connect(this.starknetAccount);
         console.log(
           `this.starknetContract.functions: ${JSON.stringify(
             this.starknetContract.functions
           )}`
         );
+        //   {
+        //     contractAddress: string;
+        //     entrypoint: string;
+        //     calldata?: RawCalldata;
+        //     signature?: Signature;
+        // }
         // TODO
         // this.starknetContract.setOwner();
         // const invokeRes: InvokeFunctionResponse = await this.starknetContract.invoke(
