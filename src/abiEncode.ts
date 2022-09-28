@@ -27,7 +27,7 @@ export function abiEncode_(
     return [int.toString(16).padStart(64, isNegative ? "f" : "0")];
   } else if (tp.baseType.startsWith("bool")) {
     const bool = Number(values.next().value === "true");
-    return [bool.toString().padStart(2, "0")];
+    return [bool.toString().padStart(64, "0")];
   } else if (/byte\d*$/.test(tp.baseType)) {
     const width = parseInt(tp.baseType.slice(4), 10);
     const bytes = BigInt(values.next().value);
