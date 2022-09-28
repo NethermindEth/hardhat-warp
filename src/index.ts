@@ -35,7 +35,7 @@ import {
   saveContract,
   WarpPluginError,
 } from "./utils";
-import { getTestAccount, getTestProvider } from './fixtures';
+import { getTestAccounts, getTestProvider } from './fixtures';
 
 import { extendEnvironment } from "hardhat/config";
 import { getStarknetContractFactory } from "./testing";
@@ -75,12 +75,12 @@ extendEnvironment((hre) => {
   // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
   hre.ethers.getSigners = async () => {
     const testProvider = getTestProvider();
-    const starknetSigner = getTestAccount(testProvider);
+    const starknetSigners = getTestAccounts(testProvider);
     const ethersSigners = await getSignersEthers();
 
     const warpSigners = [
-      new WarpSigner(ethersSigners[0], starknetSigner),
-      new WarpSigner(ethersSigners[1], starknetSigner)
+      new WarpSigner(ethersSigners[0], starknetSigners[0]),
+      new WarpSigner(ethersSigners[1], starknetSigners[1])
     ]
 
     return Promise.resolve(warpSigners);

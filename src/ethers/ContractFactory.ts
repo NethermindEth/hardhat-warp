@@ -101,7 +101,6 @@ export class ContractFactory {
         )
       );
 
-    console.log(`Account: ${this.starknetContractFactory.providerOrAccount}`);
     const starknetContract = await this.starknetContractFactory.deploy(inputs);
     console.log("deploying", this.pathToCairoFile);
     console.log(starknetContract.deployTransactionHash);
