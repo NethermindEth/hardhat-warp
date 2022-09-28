@@ -104,7 +104,8 @@ export function encodeValue(
     valueEncoded.forEach((val) => byteString.push(val.toString()));
     return [byteString.length.toString()].concat(byteString);
   } else if (tp instanceof AddressType) {
-    return encodeAsUintOrFelt(tp, value, 160);
+    // The inputs can be starknet addresses so 251 bits
+    return encodeAsUintOrFelt(tp, value, 251);
   } else if (tp instanceof BuiltinType) {
     throw new Error("Serialising BuiltinType not supported yet");
   } else if (tp instanceof BuiltinStructType) {

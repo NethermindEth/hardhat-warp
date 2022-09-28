@@ -16,6 +16,8 @@ import { encodeValueOuter, paramTypeToTypeNode } from "../encode";
 import { readFileSync } from "fs";
 import { getStarknetContractFactory } from "../testing";
 
+const declaredContracts: Set<string> = new Set();
+
 export class ContractFactory {
   readonly interface: Interface;
   readonly bytecode: string;
@@ -69,13 +71,18 @@ export class ContractFactory {
   async deploy(...args: Array<any>): Promise<EthersContract> {
     const contractsToDeclare = this.getContractsToDeclare()
     console.log(contractsToDeclare);
-    const fact = contractsToDeclare.map((c) =>
-      getStarknetContractFactory(c)
-    );
-    await Promise.all(fact.map((c) =>
+    const fact = contractsToDeclare.filter(c => {
+      if (declaredContracts.has(c)) {
+        return false;
+      }
+      declaredContracts.add(c);
+      return true;
+    }).map((c) => getStarknetContractFactory(c));
+
+    const declareTransactions = await Promise.all(fact.map((c) =>
       this.starknetContractFactory.providerOrAccount.declareContract({
         contract: c.compiledContract,
-    })));
+    })))
     console.log("Declared");
 
     const inputs = args
