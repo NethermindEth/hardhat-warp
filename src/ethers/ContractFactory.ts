@@ -128,7 +128,7 @@ export class ContractFactory {
   }
 
   connect(account: WarpSigner): ContractFactory {
-    this.starknetContractFactory.providerOrAccount = account.starkNetSigner;
+    this.starknetContractFactory.connect(account.starkNetSigner);
     return this;
   }
 
