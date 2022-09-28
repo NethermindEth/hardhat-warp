@@ -20,6 +20,7 @@ import {
   TypeNameType,
   TypeNode,
   UserDefinedType,
+  TupleType,
 } from "solc-typed-ast";
 
 export type SolValue = string | SolValue[];
@@ -57,6 +58,8 @@ export function encodeValue(
   value: SolValue,
   compilerVersion: string
 ): string[] {
+  console.log("Encoding", printTypeNode(tp), "with value", value);
+
   if (tp instanceof IntType) {
     return encodeAsUintOrFelt(tp, value, tp.nBits);
   } else if (tp instanceof ArrayType) {
@@ -119,6 +122,13 @@ export function encodeValue(
     throw new Error("Serialising FunctionType not supported yet");
   } else if (tp instanceof PointerType) {
     return encodeValue(tp.to, value, compilerVersion);
+  } else if (tp instanceof TupleType) {
+    if (!(value instanceof Array)) {
+      throw new Error(`Can't encode ${value} as a TupleType`);
+    }
+    return tp.elements.flatMap((elem, index) =>
+      encodeValue(elem, value[index], compilerVersion)
+    );
   }
   throw new Error(`Don't know how to convert type ${printTypeNode(tp)}`);
 }
@@ -205,7 +215,10 @@ export function bigintToTwosComplement(val: bigint, width: number): bigint {
 export function isPrimitiveParam(type: ParamType): boolean {
   // because why use types in a sensisble manner?
   // indexed can be false or null for primitive types
-  return (type.indexed === false || type.indexed === null) && type.components === null;
+  return (
+    (type.indexed === false || type.indexed === null) &&
+    type.components === null
+  );
 }
 
 export function decode(types: ParamType[], outputs: string[]) {
