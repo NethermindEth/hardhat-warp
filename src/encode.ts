@@ -222,6 +222,17 @@ export function decode(types: ParamType[], outputs: string[]) {
   return { ...namedMembers, ...decoded };
 }
 
+
+export function decodeEvents(types: ParamType[], outputs: string[]) {
+  const decoded = decode_(types, outputs.values());
+  const namedMembers: { [key: string]: any } = {};
+  types.forEach((ty, i) => {
+    namedMembers[ty.name] = decoded[i];
+  });
+
+  return { ...namedMembers, ...decoded };
+}
+
 export function decode_(
   types: ParamType[],
   outputs: IterableIterator<string>

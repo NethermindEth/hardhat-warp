@@ -37,7 +37,7 @@ import {
 } from "@ethersproject/abstract-provider";
 import {id as keccak} from "@ethersproject/hash";
 import { parse, TypeNode } from "solc-typed-ast";
-import { decode, decode_, encodeValueOuter, SolValue } from "../encode";
+import { decode, decodeEvents, decode_, encodeValueOuter, SolValue } from "../encode";
 import { FIELD_PRIME } from "starknet/dist/constants";
 import {readFileSync} from "fs";
 import {normalizeAddress} from "../utils";
@@ -460,7 +460,7 @@ export class WarpContract extends EthersContract {
         const currentTopic = e.keys[0];
         const [eventFragment, selector] = this.ethTopicToEvent[this.snTopicToName[currentTopic]];
 
-        const results = decode(eventFragment.inputs, e.data);
+        const results = decodeEvents(eventFragment.inputs, e.data);
         const resultsArray = decode_(eventFragment.inputs, e.data.values());
         console.log("Going to encode");
         return {
@@ -470,7 +470,7 @@ export class WarpContract extends EthersContract {
           removed: false,
           address: normalizeAddress(e.from_address),
           // abi encoded data
-          data: this.ethersContractFactory.interface._abiCoder.encode(eventFragment.inputs, resultsArray),
+          data: abiEncode(eventFragment.inputs, resultsArray as SolValue[]),
           topics: [selector],
           transactionHash,
           logIndex: i,
