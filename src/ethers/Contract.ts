@@ -271,7 +271,9 @@ export class WarpContract extends EthersContract {
             calldata,
             entrypoint: cairoFuncName,
           },
-          {}
+          {
+            maxFee: FIELD_PRIME,
+          }
         );
         console.log("Before to etheresTransaction")
         const abiEncodedInputs = abiEncode(fragment.inputs, args.map(a => this.argStringifier(a)))
