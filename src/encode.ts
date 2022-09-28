@@ -21,6 +21,7 @@ import {
   TypeNode,
   UserDefinedType,
 } from "solc-typed-ast";
+import {normalizeAddress} from "./utils";
 
 export type SolValue = string | SolValue[];
 
@@ -219,9 +220,9 @@ export function decode(types: ParamType[], outputs: string[]) {
   if (types.length === 1) {
     return decoded[0];
   }
+
   return { ...namedMembers, ...decoded };
 }
-
 
 export function decodeEvents(types: ParamType[], outputs: string[]) {
   const decoded = decode_(types, outputs.values());
@@ -249,7 +250,7 @@ export function decode_(
 function decodePrimitive(
   typeString: string,
   outputs: IterableIterator<string>
-): BigNumberish | boolean {
+): BigNumberish | boolean | string {
   if (typeString.startsWith("uint")) {
     return decodeUint(
       typeString.length > 4 ? parseInt(typeString.slice(4), 10) : 256,
@@ -263,7 +264,7 @@ function decodePrimitive(
     );
   }
   if (typeString === "address") {
-    return readFelt(outputs);
+    return normalizeAddress(`0x${readFelt(outputs).toString(16)}`);
   }
   if (typeString === "bool") {
     return readFelt(outputs) === 0n ? false : true;
