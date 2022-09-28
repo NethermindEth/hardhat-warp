@@ -1,4 +1,4 @@
-import { ContractFactory as StarknetContractFactory } from "starknet";
+import { Account, ContractFactory as StarknetContractFactory } from "starknet";
 import {
   BigNumber,
   BytesLike,
@@ -15,6 +15,7 @@ import { BN } from "bn.js";
 import { encodeValueOuter, paramTypeToTypeNode } from "../encode";
 import { readFileSync } from "fs";
 import { getStarknetContractFactory } from "../testing";
+import { WarpSigner } from "./Signer";
 
 const declaredContracts: Set<string> = new Set();
 
@@ -69,20 +70,25 @@ export class ContractFactory {
   }
 
   async deploy(...args: Array<any>): Promise<EthersContract> {
-    const contractsToDeclare = this.getContractsToDeclare()
+    const contractsToDeclare = this.getContractsToDeclare();
     console.log(contractsToDeclare);
-    const fact = contractsToDeclare.filter(c => {
-      if (declaredContracts.has(c)) {
-        return false;
-      }
-      declaredContracts.add(c);
-      return true;
-    }).map((c) => getStarknetContractFactory(c));
+    const fact = contractsToDeclare
+      .filter((c) => {
+        if (declaredContracts.has(c)) {
+          return false;
+        }
+        declaredContracts.add(c);
+        return true;
+      })
+      .map((c) => getStarknetContractFactory(c));
 
-    const declareTransactions = await Promise.all(fact.map((c) =>
-      this.starknetContractFactory.providerOrAccount.declareContract({
-        contract: c.compiledContract,
-    })))
+    const declareTransactions = await Promise.all(
+      fact.map((c) =>
+        this.starknetContractFactory.providerOrAccount.declareContract({
+          contract: c.compiledContract,
+        })
+      )
+    );
     console.log("Declared");
 
     const inputs = args
@@ -95,10 +101,11 @@ export class ContractFactory {
         )
       );
 
+    console.log(`Account: ${this.starknetContractFactory.providerOrAccount}`);
     const starknetContract = await this.starknetContractFactory.deploy(inputs);
-    console.log("deploying", this.pathToCairoFile)
-    console.log(starknetContract.deployTransactionHash)
-    await starknetContract.deployed()
+    console.log("deploying", this.pathToCairoFile);
+    console.log(starknetContract.deployTransactionHash);
+    await starknetContract.deployed();
     const contract = new WarpContract(
       starknetContract,
       this.starknetContractFactory,
@@ -120,8 +127,9 @@ export class ContractFactory {
     return contract;
   }
 
-  connect(signer: Signer) {
-    throw new Error("connect not yet supported");
+  connect(account: WarpSigner): ContractFactory {
+    this.starknetContractFactory.providerOrAccount = account.starkNetSigner;
+    return this;
   }
 
   static fromSolidity(compilerOutput: any, signer?: Signer): ContractFactory {
