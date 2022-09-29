@@ -36,21 +36,12 @@ import {
   Block,
   TransactionReceipt,
 } from "@ethersproject/abstract-provider";
-import { id as keccak } from "@ethersproject/hash";
-import { parse, TypeNode } from "solc-typed-ast";
-import {
-  decode,
-  decodeEvents,
-  decode_,
-  encodeValueOuter,
-  SolValue,
-} from "../encode";
+import {id as keccak} from "@ethersproject/hash";
+import { abiCoder, decode, decodeEvents, decode_, encode } from "../transcode";
 import { FIELD_PRIME } from "starknet/dist/constants";
-import { readFileSync } from "fs";
-import { normalizeAddress } from "../utils";
-import { abiEncode } from "../abiEncode";
-import { WarpSigner } from "./Signer";
-import {getSequencerProvder} from "../provider";
+import {readFileSync} from "fs";
+import {normalizeAddress} from "../utils";
+import {WarpSigner} from "./Signer";
 
 const ASSERT_ERROR = "An ASSERT_EQ instruction failed";
 
@@ -232,21 +223,6 @@ export class WarpContract extends EthersContract {
     throw new Error("Not implemented yet");
   }
 
-  public argStringifier(arg: any): SolValue {
-    return Array.isArray(arg) ? arg.map(this.argStringifier) : arg.toString();
-  }
-
-  private format(paramType: ParamType): string {
-    if (paramType.type === "tuple") {
-      return `tuple(${paramType.components.map(this.format).join(",")})`;
-    } else if (paramType.arrayChildren !== null) {
-      return `${this.format(paramType.arrayChildren)}[${
-        paramType.arrayLength >= 0 ? paramType.arrayLength : ""
-      }]`;
-    } else {
-      return paramType.type;
-    }
-  }
   private buildDefault(solName: string, fragment: FunctionFragment) {
     if (fragment.constant) {
       return this.buildCall(solName, fragment);
@@ -255,28 +231,16 @@ export class WarpContract extends EthersContract {
   }
 
   private buildInvoke(solName: string, fragment: FunctionFragment) {
-    const inputTypeNodes = fragment.inputs.map((tp) => {
-      const res = parse(this.format(tp), {
-        ctx: undefined,
-        version: undefined,
-      }) as TypeNode;
-      return res;
-    });
     const cairoFuncName =
       solName + "_" + this.interface.getSighash(fragment).slice(2); // Todo finish this keccak (use web3)
 
     return async (...args: any[]) => {
-      console.log({ cairoFuncName });
-      const calldata = args.flatMap((arg, i) =>
-        encodeValueOuter(
-          inputTypeNodes[i],
-          this.argStringifier(arg),
-          "we don't care"
-        )
-      );
       try {
-        console.log("INVOKE FUNCTION");
-        // console.log(await this.starknetAccount?.getNonce())
+        const calldata = encode(
+          fragment.inputs,
+          args,
+        )
+
         let invokeResponse : InvokeFunctionResponse;
         if (this.starknetContract.providerOrAccount instanceof WarpSigner) {
           invokeResponse = await this.starknetContract.providerOrAccount.starkNetSigner.execute(
@@ -286,19 +250,27 @@ export class WarpContract extends EthersContract {
               entrypoint: cairoFuncName,
             },
           );
+        } else {
+          invokeResponse = await this.starknetContract.providerOrAccount.invokeFunction(
+            {
+              contractAddress: this.starknetContract.address,
+              calldata,
+              entrypoint: cairoFuncName,
+            },
+            {
+              // Set maxFee to some high number for goerli
+              maxFee: process.env.STARKNET_PROVIDER_BASE_URL ? undefined : (2n ** 250n).toString()
+            }
+          );
         }
-        // console.log(await this.starknetAccount?.getNonce())
 
-        console.log("Before to etheresTransaction");
-        const abiEncodedInputs = abiEncode(
-          fragment.inputs,
-          args.map((a) => this.argStringifier(a))
-        );
-        const sigHash = this.ethersContractFactory.interface.getSighash(
-          fragment
-        );
+        const abiEncodedInputs = abiCoder.encode(fragment.inputs, args.map(a => this.argStringifier(a)))
+        const sigHash = this.ethersContractFactory.interface.getSighash(fragment);
         const data = sigHash.concat(abiEncodedInputs.substring(2));
-        return this.toEtheresTransactionResponse(invokeResponse!, data);
+        return this.toEtheresTransactionResponse(
+          invokeResponse,
+          data
+        );
       } catch (e) {
         if (e instanceof GatewayError) {
           if (e.message.includes(ASSERT_ERROR)) {
@@ -312,24 +284,13 @@ export class WarpContract extends EthersContract {
     };
   }
   private buildCall(solName: string, fragment: FunctionFragment) {
-    const inputTypeNodes = fragment.inputs.map(
-      (tp) =>
-        parse(this.format(tp), {
-          ctx: undefined,
-          version: undefined,
-        }) as TypeNode
-    );
-
     const cairoFuncName =
       solName + "_" + this.interface.getSighash(fragment).slice(2); // Todo finish this keccak (use web3)
     // @ts-ignore
     return async (...args: any[]) => {
-      const calldata = args.flatMap((arg, i) =>
-        encodeValueOuter(
-          inputTypeNodes[i],
-          this.argStringifier(arg),
-          "we don't care"
-        )
+      const calldata = encode(
+        fragment.inputs,
+        args,
       );
       try {
         const output_before = await this.starknetContract.providerOrAccount.callContract(
@@ -365,8 +326,10 @@ export class WarpContract extends EthersContract {
     // @ts-ignore
     this[solName] = this.buildDefault(solName, fragment);
 
+    // TODO: functions have a slightly different return type for single value returns
     this.functions[solName] = this.buildDefault(solName, fragment);
 
+    // TODO: callStatic have a slightly different return type for single value returns
     this.callStatic[solName] = this.buildCall(solName, fragment);
   }
 
@@ -480,38 +443,37 @@ export class WarpContract extends EthersContract {
     transactionIndex: number,
     transactionHash: string
   ): Array<Event> {
-    return events.map((e, i) => {
-      const currentTopic = e.keys[0];
-      const [eventFragment, selector] = this.ethTopicToEvent[
-        this.snTopicToName[currentTopic]
-      ];
+    return events.map(
+      (e, i) =>
+      {
+        const currentTopic = e.keys[0];
+        const [eventFragment, selector] = this.ethTopicToEvent[this.snTopicToName[currentTopic]];
 
-      const results = decodeEvents(eventFragment.inputs, e.data);
-      const resultsArray = decode_(eventFragment.inputs, e.data.values());
-      console.log("Going to encode");
-      return {
-        blockNumber,
-        blockHash,
-        transactionIndex,
-        removed: false,
-        address: normalizeAddress(e.from_address),
-        // abi encoded data
-        data: abiEncode(eventFragment.inputs, resultsArray as SolValue[]),
-        topics: [selector],
-        transactionHash,
-        logIndex: i,
+        const results = decodeEvents(eventFragment.inputs, e.data);
+        const resultsArray = decode_(eventFragment.inputs, e.data.values());
+        console.log("Going to encode");
+        return {
+          blockNumber,
+          blockHash,
+          transactionIndex,
+          removed: false,
+          address: normalizeAddress(e.from_address),
+          // abi encoded data
+          data: abiCoder.encode(eventFragment.inputs, resultsArray),
+          topics: [selector],
+          transactionHash,
+          logIndex: i,
 
-        event: eventFragment.name,
-        eventSignature: eventFragment.format("sighash"),
-        args: results,
-        removeListener: () => {
-          throw new Error("Duck you");
-        },
-        // TODO: use the functions when they are seperated
-        getBlock: () => Promise.resolve({} as Block),
-        getTransaction: () => Promise.resolve({} as TransactionResponse),
-        getTransactionReceipt: () => Promise.resolve({} as TransactionReceipt),
-      };
-    });
+          event: eventFragment.name,
+          eventSignature: eventFragment.format("sighash"),
+          args: results,
+          removeListener: () => { throw new Error("Duck you") },
+          // TODO: use the functions when they are seperated
+          getBlock: () => Promise.resolve({} as Block),
+          getTransaction: () => Promise.resolve({} as TransactionResponse),
+          getTransactionReceipt: () => Promise.resolve({} as TransactionReceipt),
+        }
+      }
+    );
   }
 }

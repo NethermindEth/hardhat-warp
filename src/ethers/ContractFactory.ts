@@ -10,7 +10,7 @@ import { Interface } from "@ethersproject/abi";
 import { TransactionRequest } from "@ethersproject/abstract-provider";
 import { ContractInterface } from "@ethersproject/contracts";
 import { WarpContract } from "./Contract";
-import { encodeValueOuter, paramTypeToTypeNode } from "../encode";
+import { encode } from "../transcode";
 import { readFileSync } from "fs";
 import { WarpSigner } from "./Signer";
 import {getContract} from "../utils";
@@ -88,15 +88,10 @@ export class ContractFactory {
       )
     );
 
-    const inputs = args
-      .map((x) => x.toString())
-      .flatMap((solValue, i) =>
-        encodeValueOuter(
-          paramTypeToTypeNode(this.interface.deploy.inputs[i]),
-          solValue,
-          "undefined"
-        )
-      );
+    const inputs = encode(
+      this.interface.deploy.inputs,
+      args,
+    )
 
     const starknetContract = await this.starknetContractFactory.deploy(inputs);
     console.log("deploying", this.pathToCairoFile);

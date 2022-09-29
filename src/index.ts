@@ -10,17 +10,12 @@ import { extendConfig, subtask, types } from "hardhat/config";
 import { glob } from "hardhat/internal/util/glob";
 import { CompilerInput, HardhatConfig, HardhatUserConfig } from "hardhat/types";
 import path from "path";
-import { runTypeChain } from "typechain";
-
 import { ContractInfo } from "./ethers/Contract";
 import { HashInfo } from "./Hash";
 import {
   TASK_COMPILE_WARP_GET_HASH,
   TASK_COMPILE_WARP_GET_SOURCE_PATHS,
   TASK_COMPILE_WARP_GET_WARP_PATH,
-  TASK_COMPILE_WARP_MAKE_TYPECHAIN,
-  TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT,
-  TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT,
   TASK_COMPILE_WARP_RUN_BINARY,
   TASK_DEPLOY_WARP_GET_CAIRO_PATH,
   TASK_WRITE_CONTRACT_INFO,
@@ -28,7 +23,6 @@ import {
 import { Transpiler } from "./transpiler";
 import {
   checkHash,
-  colorLogger,
   compile,
   getContract,
   saveContract,
@@ -149,45 +143,19 @@ subtask(TASK_COMPILE_SOLIDITY_RUN_SOLC)
 );
 
 subtask(
-  TASK_COMPILE_GET_COMPILATION_TASKS,
-  async (_, __, runSuper): Promise<string[]> => {
-    const otherTasks = await runSuper();
-    return [
-      TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT,
-      ...otherTasks,
-      // TASK_COMPILE_WARP,
-      TASK_WRITE_CONTRACT_INFO,
-      TASK_COMPILE_WARP_MAKE_TYPECHAIN,
-    ];
-  }
+    TASK_COMPILE_GET_COMPILATION_TASKS,
+    async (_, __, runSuper): Promise<string[]> => {
+      return [
+        ...await runSuper(),
+        TASK_WRITE_CONTRACT_INFO,
+      ];
+    },
 );
 
-subtask(
-  TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT,
-  async (): Promise<void> => {
-    colorLogger("\nCompiling Ethereum contracts: \n");
-  }
-);
-
-subtask(
-  TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT,
-  async (): Promise<void> => {
-    colorLogger("\nCompiling Starknet contracts: \n");
-  }
-);
-
-subtask(
-  TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS,
-  async (_, { config }): Promise<string[]> => {
-    const solPaths = await glob(
-      path.join(config.paths.root, "contracts/**/*.sol")
-    );
-    const cairoPaths = await glob(
-      path.join(config.paths.root, "contracts/**/*_cairo.sol")
-    );
-
-    return solPaths.filter((x) => !cairoPaths.includes(x));
-  }
+subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS,
+    (_, {config}): Promise<string[]> => {
+      return glob(path.join(config.paths.root, 'contracts/**/*.sol'));
+    },
 );
 
 subtask(
@@ -279,24 +247,6 @@ subtask(
     return config.paths.warp;
   }
 );
-
-subtask(TASK_COMPILE_WARP_MAKE_TYPECHAIN, async (_, { config }) => {
-  const abiPaths = await glob(
-    path.join(config.paths.root, "warp_output/**/*_compiled.json")
-  );
-  if (abiPaths.length === 0) {
-    console.log("No compiled Starknet contracts found, no typechains to build");
-    return;
-  }
-  const cwd = process.cwd();
-  runTypeChain({
-    cwd: cwd,
-    filesToProcess: abiPaths,
-    allFiles: abiPaths,
-    outDir: "typechain-types",
-    target: "starknet",
-  });
-});
 
 // subtask(TASK_COMPILE_WARP)
 //     .setAction(
