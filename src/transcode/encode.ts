@@ -101,44 +101,16 @@ export function encodeComplex(
       ...value.flatMap((val) => encode_(type.arrayChildren, makeIterator(val))),
     ];
   } else if (type.baseType === "tuple") {
-    /*
-    const value_ = safeNext(makeIterator(value));
-    if (
-      typeof value_ === "bigint" ||
-      value_ instanceof BigInt ||
-      typeof value_ === "string" ||
-      value_ instanceof String ||
-      typeof value_ === "number" ||
-      value_ instanceof Number ||
-      typeof value_ === "boolean" ||
-      Array.isArray(value_) ||
-      value_ instanceof BigNumber
-    ) {
-      throw new Error("Struct argument incorrect type");
-    }
-    const value2 = value_ as { [key: string]: SolValue };
-
-    if (typeof value2 !== "object")
-      throw new Error("Struct argument incorrect type");
-    */
-
     if (typeof value !== "object") {
       throw new Error("Expected Object input for transcoding tuple types");
     }
 
-    const tupleValues = value as { [key: string]: SolValue };
-    const valueValues = Object.values(tupleValues);
+    const value_ = value as { [key: string]: SolValue };
+    const tupleValues = Object.values(value_);
 
-    return type.components.flatMap((type, index) => {
-      /*
-      if (type.name === null) throw new Error("Struct has null component");
-      if (!(type.name in value2))
-        throw new Error(
-          `Struct doesn't include required component ${type.name}`
-        );
-      */
-      return encode_(type, makeIterator(valueValues[index]));
-    });
+    return type.components.flatMap((type, index) =>
+      encode_(type, makeIterator(tupleValues[index]))
+    );
   }
   throw new Error(`Can't encode complex type ${type}`);
 }
