@@ -126,9 +126,8 @@ export class WarpContract extends EthersContract {
     this.populateTransaction = starknetContract.populateTransaction;
     this.resolvedAddress = Promise.resolve(starknetContract.address);
     this._deployedPromise = Promise.resolve(this);
-    // @ts-ignore
-    this.starknetProvider = starknetContract.providerOrAccount
-      .provider as SequencerProvider;
+    this.starknetProvider = // @ts-ignore
+    starknetContract.providerOrAccount.provider as SequencerProvider;
     this.solidityCairoRemap();
 
     const compiledCairo = JSON.parse(
@@ -273,10 +272,10 @@ export class WarpContract extends EthersContract {
         return this.toEtheresTransactionResponse(invokeResponse, data);
       } catch (e) {
         if (e instanceof GatewayError) {
-          // if (e.message.includes(ASSERT_ERROR)) {
-          // } else {
-          throw e;
-          // }
+          if (e.message.includes(ASSERT_ERROR)) {
+          } else {
+            throw e;
+          }
         } else {
           throw e;
         }
