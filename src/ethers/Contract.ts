@@ -91,7 +91,7 @@ export class WarpContract extends EthersContract {
   // address if an ENS name was used in the constructor
   readonly resolvedAddress: Promise<string>;
 
-  private sequencerProvider: SequencerProvider;
+  private sequencerProvider = getSequencerProvder();
 
   snTopicToName: { [key: string]: string } = {};
   // ethTopic here referes to the keccak of "event_name + selector"
@@ -115,8 +115,6 @@ export class WarpContract extends EthersContract {
     this.populateTransaction = starknetContract.populateTransaction;
     this.resolvedAddress = Promise.resolve(starknetContract.address);
     this._deployedPromise = Promise.resolve(this);
-    // @ts-ignore
-    this.sequencerProvider = getSequencerProvder()
     this.solidityCairoRemap();
 
     const compiledCairo = JSON.parse(
@@ -250,6 +248,11 @@ export class WarpContract extends EthersContract {
             calldata: calldata,
             entrypoint: cairoFuncName,
           },
+          undefined,
+          {
+            // Set maxFee to some high number for goerli
+            maxFee: process.env.STARKNET_PROVIDER_BASE_URL ? undefined : (2n ** 250n).toString()
+          }
         );
         const abiEncodedInputs = abiCoder.encode(fragment.inputs, args)
         const sigHash = this.ethersContractFactory.interface.getSighash(fragment);
