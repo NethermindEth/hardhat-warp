@@ -6,6 +6,7 @@ import * as fs from "fs";
 import * as os from 'os';
 import * as path from 'path';
 import {exec} from 'child_process';
+import { SequencerProvider } from "starknet";
 
 export class WarpPluginError extends NomicLabsHardhatPluginError {
   constructor(message: string, parent?: Error, shouldBeReported?: boolean) {
@@ -77,7 +78,7 @@ export function saveContract(contract: ContractInfo) {
     const readData = fs.readFileSync("warp_output/contracts.json", "utf-8");
     const existingData = JSON.parse(readData) as ContractInfo[];
     existingData.forEach((ctr) => {
-      const temp = new ContractInfo("", "", []);
+      const temp = new ContractInfo("", "");
       Object.assign(temp, ctr);
       if (temp.getName() !== contract.getName()) contracts.push(temp);
     });
@@ -141,3 +142,25 @@ export function nethersolcPath(version: SupportedSolcVersions): string {
   const platform = getPlatform();
   return path.resolve(__dirname, '..', 'node_modules', '@nethermindeth/warp', 'nethersolc', platform, version, 'solc');
 }
+
+export type StarknetDevnetGetAccountsResponse = {
+  address: string;
+  initial_balance: number;
+  private_key: string;
+  public_key: string;
+};
+
+export const getTestProvider = () => {
+  // TODO check if provider url exists first.
+  const provider = new SequencerProvider({
+    baseUrl: process.env.STARKNET_PROVIDER_BASE_URL!,
+  });
+
+  // accelerate the tests when running locally
+  const originalWaitForTransaction = provider.waitForTransaction.bind(provider);
+  provider.waitForTransaction = (txHash: any, retryInterval: any) => {
+    return originalWaitForTransaction(txHash, retryInterval || 1000);
+  };
+
+  return provider;
+};

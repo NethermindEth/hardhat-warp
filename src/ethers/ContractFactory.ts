@@ -1,21 +1,20 @@
-import { ContractFactory as StarknetContractFactory } from "starknet";
+import { ContractFactory as StarknetContractFactory, json } from "starknet";
 import {
   BigNumber,
   BytesLike,
   ContractFactory as EthersContractFactory,
   Signer,
   Contract as EthersContract,
-  BigNumberish,
 } from "ethers";
 import { Interface } from "@ethersproject/abi";
 import { TransactionRequest } from "@ethersproject/abstract-provider";
 import { ContractInterface } from "@ethersproject/contracts";
 import { WarpContract } from "./Contract";
-import { BN } from "bn.js";
 import { encode } from "../transcode";
 import { readFileSync } from "fs";
-import { getStarknetContractFactory } from "../testing";
-
+import { WarpSigner } from "./Signer";
+import {getContract} from "../utils";
+import {getDefaultAccount, getSequencerProvder} from "../provider";
 const declaredContracts: Set<string> = new Set();
 
 export class ContractFactory {
@@ -69,21 +68,21 @@ export class ContractFactory {
   }
 
   async deploy(...args: Array<any>): Promise<EthersContract> {
-    const contractsToDeclare = this.getContractsToDeclare()
-    console.log(contractsToDeclare);
-    const fact = contractsToDeclare.filter(c => {
-      if (declaredContracts.has(c)) {
-        return false;
-      }
-      declaredContracts.add(c);
-      return true;
-    }).map((c) => getStarknetContractFactory(c));
+    await Promise.all(this.getContractsToDeclare()
+      .filter((c) => {
+        if (declaredContracts.has(c)) {
+          return false;
+        }
+        declaredContracts.add(c);
+        return true;
+      })
+      .map(async (name) =>{
+        const factory = await getStarknetContractFactory(name)
 
-    const declareTransactions = await Promise.all(fact.map((c) =>
-      this.starknetContractFactory.providerOrAccount.declareContract({
-        contract: c.compiledContract,
-    })))
-    console.log("Declared");
+        this.starknetContractFactory.providerOrAccount.declareContract({
+          contract: factory.compiledContract,
+      })}))
+    ;
 
     const inputs = encode(
       this.interface.deploy.inputs,
@@ -91,9 +90,9 @@ export class ContractFactory {
     )
 
     const starknetContract = await this.starknetContractFactory.deploy(inputs);
-    console.log("deploying", this.pathToCairoFile)
-    console.log(starknetContract.deployTransactionHash)
-    await starknetContract.deployed()
+    console.log("deploying", this.pathToCairoFile);
+    console.log(starknetContract.deployTransactionHash);
+    await starknetContract.deployed();
     const contract = new WarpContract(
       starknetContract,
       this.starknetContractFactory,
@@ -115,8 +114,10 @@ export class ContractFactory {
     return contract;
   }
 
-  connect(signer: Signer) {
-    throw new Error("connect not yet supported");
+  connect(account: WarpSigner): ContractFactory {
+    this.starknetContractFactory.connect(account.starkNetSigner);
+    this.starknetContractFactory.providerOrAccount = account.starkNetSigner;
+    return this;
   }
 
   static fromSolidity(compilerOutput: any, signer?: Signer): ContractFactory {
@@ -143,10 +144,13 @@ export class ContractFactory {
   }
 }
 
-function toBN(value: BigNumberish) {
-  const hex = BigNumber.from(value).toHexString();
-  if (hex[0] === "-") {
-    return new BN("-" + hex.substring(3), 16);
-  }
-  return new BN(hex.substring(2), 16);
+export async function getStarknetContractFactory(contractName: string) : Promise<StarknetContractFactory> {
+  const contract = getContract(contractName);
+  const compiledContract =
+        json.parse(readFileSync(contract.getCompiledJson()).toString('ascii'));
+  return new StarknetContractFactory(
+    compiledContract,
+    await getDefaultAccount(),
+    compiledContract.abi,
+  );
 }

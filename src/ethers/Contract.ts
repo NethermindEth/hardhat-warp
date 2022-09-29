@@ -1,15 +1,13 @@
 import path from "path";
 import {
-  InvocationsDetails,
   GatewayError,
-  Event as StarknetEvent,
   ContractFactory as StarknetContractFactory,
-  SequencerProvider,
   Contract as StarknetContract,
-  ProviderInterface,
   InvokeFunctionResponse,
   InvokeTransactionReceiptResponse,
   Event as StarkEvent,
+  SequencerProvider,
+  Account,
 } from "starknet";
 import { starknetKeccak } from "starknet/dist/utils/hash";
 import {
@@ -42,22 +40,20 @@ import {
 import { id as keccak } from "@ethersproject/hash";
 import { abiCoder, decode, decodeEvents, decode_, encode } from "../transcode";
 import { FIELD_PRIME } from "starknet/dist/constants";
-import { readFileSync } from "fs";
-import { normalizeAddress } from "../utils";
+import {readFileSync} from "fs";
+import {normalizeAddress} from "../utils";
+import {WarpSigner} from "./Signer";
+import {getSequencerProvder} from "../provider";
 
 const ASSERT_ERROR = "An ASSERT_EQ instruction failed";
 
 export class ContractInfo {
   private name: string;
   private solidityFile: string;
-  private deployedAddress = "";
-  private deployTxHash = "";
-  private cairoFiles: string[];
 
-  constructor(name: string, solidityFile: string, cairoFile: string[] = []) {
+  constructor(name: string, solidityFile: string) {
     this.name = name;
     this.solidityFile = solidityFile;
-    this.cairoFiles = cairoFile;
   }
 
   getName() {
@@ -66,14 +62,6 @@ export class ContractInfo {
 
   getSolidityFile() {
     return this.solidityFile;
-  }
-
-  setDeployedAddress(add: string) {
-    this.deployedAddress = add;
-  }
-
-  setDeployTxHash(hash: string) {
-    this.deployTxHash = hash;
   }
 
   getCairoFile() {
@@ -103,12 +91,13 @@ export class WarpContract extends EthersContract {
   // address if an ENS name was used in the constructor
   readonly resolvedAddress: Promise<string>;
 
+  private sequencerProvider = getSequencerProvder();
+
   snTopicToName: { [key: string]: string } = {};
   // ethTopic here referes to the keccak of "event_name + selector"
   // because that's the mangling that warp produces
   private ethTopicToEvent: { [key: string]: [EventFragment, string] } = {};
 
-  private starknetProvider: SequencerProvider;
   constructor(
     private starknetContract: StarknetContract,
     private starknetContractFactory: StarknetContractFactory,
@@ -126,8 +115,6 @@ export class WarpContract extends EthersContract {
     this.populateTransaction = starknetContract.populateTransaction;
     this.resolvedAddress = Promise.resolve(starknetContract.address);
     this._deployedPromise = Promise.resolve(this);
-    this.starknetProvider = // @ts-ignore
-    starknetContract.providerOrAccount.provider as SequencerProvider;
     this.solidityCairoRemap();
 
     const compiledCairo = JSON.parse(
@@ -181,7 +168,9 @@ export class WarpContract extends EthersContract {
 
   // Reconnect to a different signer or provider
   connect(signerOrProvider: Signer | Provider | string): EthersContract {
-    throw new Error("Not implemented yet");
+    const warpSigner = signerOrProvider as WarpSigner;
+    this.starknetContract.connect(warpSigner.starkNetSigner);
+    return this;
   }
 
   // Re-attach to a different on-chain instance of this contract
@@ -246,16 +235,20 @@ export class WarpContract extends EthersContract {
       solName + "_" + this.interface.getSighash(fragment).slice(2); // Todo finish this keccak (use web3)
 
     return async (...args: any[]) => {
-      console.log({ cairoFuncName });
-      const calldata = encode(fragment.inputs, args);
       try {
-        console.log("INVOKE FUNCTION");
-        const invokeResponse = await this.starknetContract.providerOrAccount.invokeFunction(
+        const calldata = encode(
+          fragment.inputs,
+          args,
+        )
+
+        if (! (this.starknetContract.providerOrAccount instanceof Account)) throw new Error("Expect contract provider to be account");
+        const invokeResponse = await this.starknetContract.providerOrAccount.execute(
           {
             contractAddress: this.starknetContract.address,
-            calldata,
+            calldata: calldata,
             entrypoint: cairoFuncName,
           },
+          undefined,
           {
             // Set maxFee to some high number for goerli
             maxFee: process.env.STARKNET_PROVIDER_BASE_URL
@@ -263,13 +256,13 @@ export class WarpContract extends EthersContract {
               : (2n ** 250n).toString(),
           }
         );
-        console.log("Before to etheresTransaction");
-        const abiEncodedInputs = abiCoder.encode(fragment.inputs, args);
-        const sigHash = this.ethersContractFactory.interface.getSighash(
-          fragment
-        );
+        const abiEncodedInputs = abiCoder.encode(fragment.inputs, args)
+        const sigHash = this.ethersContractFactory.interface.getSighash(fragment);
         const data = sigHash.concat(abiEncodedInputs.substring(2));
-        return this.toEtheresTransactionResponse(invokeResponse, data);
+        return this.toEtheresTransactionResponse(
+          invokeResponse,
+          data
+        );
       } catch (e) {
         if (e instanceof GatewayError) {
           if (e.message.includes(ASSERT_ERROR)) {
@@ -345,17 +338,17 @@ export class WarpContract extends EthersContract {
     { transaction_hash }: InvokeFunctionResponse,
     data: string
   ): Promise<ContractTransaction> {
-    const txStatus = await this.starknetProvider.getTransactionStatus(
+    const txStatus = await this.sequencerProvider.getTransactionStatus(
       transaction_hash
     );
-    const txTrace = await this.starknetProvider.getTransactionTrace(
+    const txTrace = await this.sequencerProvider.getTransactionTrace(
       transaction_hash
     );
 
     if (txStatus.tx_status === "NOT_RECEIVED") {
       throw new Error("Failed transactions not supported yet");
     }
-    const txResponse = await this.starknetProvider.getTransaction(
+    const txResponse = await this.sequencerProvider.getTransaction(
       transaction_hash
     );
     // Handle failure case
@@ -365,8 +358,8 @@ export class WarpContract extends EthersContract {
           (JSON.stringify(txStatus.tx_failure_reason) || "")
       );
     }
-    const txBlock = await this.starknetProvider.getBlock(txStatus.block_hash);
-    const latestBlock = await this.starknetProvider.getBlock();
+    const txBlock = await this.sequencerProvider.getBlock(txStatus.block_hash);
+    const latestBlock = await this.sequencerProvider.getBlock();
 
     console.log("To ethers conversion happened");
     return {
@@ -381,20 +374,20 @@ export class WarpContract extends EthersContract {
       value: BigNumber.from(0),
       chainId: -1,
       wait: async (_: number | undefined) => {
-        this.starknetProvider.waitForTransaction(transaction_hash);
-        const txStatus = await this.starknetProvider.getTransactionStatus(
+        this.sequencerProvider.waitForTransaction(transaction_hash);
+        const txStatus = await this.sequencerProvider.getTransactionStatus(
           transaction_hash
         );
-        const txBlock = await this.starknetProvider.getBlock(
+        const txBlock = await this.sequencerProvider.getBlock(
           txStatus.block_hash
         );
-        const txTrace = await this.starknetProvider.getTransactionTrace(
+        const txTrace = await this.sequencerProvider.getTransactionTrace(
           transaction_hash
         );
-        const txReceipt = (await this.starknetProvider.getTransactionReceipt(
+        const txReceipt = (await this.sequencerProvider.getTransactionReceipt(
           transaction_hash
         )) as InvokeTransactionReceiptResponse;
-        const latestBlock = await this.starknetProvider.getBlock();
+        const latestBlock = await this.sequencerProvider.getBlock();
         const ethEvents = this.starknetEventsToEthEvents(
           txReceipt.events,
           txBlock.block_number,
