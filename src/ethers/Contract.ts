@@ -126,7 +126,8 @@ export class WarpContract extends EthersContract {
     this.populateTransaction = starknetContract.populateTransaction;
     this.resolvedAddress = Promise.resolve(starknetContract.address);
     this._deployedPromise = Promise.resolve(this);
-    this.starknetProvider = starknetContract.providerOrAccount // @ts-ignore
+    // @ts-ignore
+    this.starknetProvider = starknetContract.providerOrAccount
       .provider as SequencerProvider;
     this.solidityCairoRemap();
 
@@ -250,7 +251,6 @@ export class WarpContract extends EthersContract {
       const calldata = encode(fragment.inputs, args);
       try {
         console.log("INVOKE FUNCTION");
-        console.log("with calldata", calldata);
         const invokeResponse = await this.starknetContract.providerOrAccount.invokeFunction(
           {
             contractAddress: this.starknetContract.address,
@@ -265,10 +265,7 @@ export class WarpContract extends EthersContract {
           }
         );
         console.log("Before to etheresTransaction");
-        const abiEncodedInputs = abiCoder.encode(
-          fragment.inputs,
-          args.map((a) => this.argStringifier(a))
-        );
+        const abiEncodedInputs = abiCoder.encode(fragment.inputs, args);
         const sigHash = this.ethersContractFactory.interface.getSighash(
           fragment
         );
