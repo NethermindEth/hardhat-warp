@@ -251,8 +251,7 @@ export class WarpContract extends EthersContract {
             entrypoint: cairoFuncName,
           },
         );
-
-        const abiEncodedInputs = abiCoder.encode(fragment.inputs, args.map(a => this.argStringifier(a)))
+        const abiEncodedInputs = abiCoder.encode(fragment.inputs, args)
         const sigHash = this.ethersContractFactory.interface.getSighash(fragment);
         const data = sigHash.concat(abiEncodedInputs.substring(2));
         return this.toEtheresTransactionResponse(
