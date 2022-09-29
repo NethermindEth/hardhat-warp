@@ -1,16 +1,12 @@
 import path from "path";
 import {
-  InvocationsDetails,
   GatewayError,
-  Event as StarknetEvent,
   ContractFactory as StarknetContractFactory,
-  SequencerProvider,
   Contract as StarknetContract,
-  ProviderInterface,
   InvokeFunctionResponse,
   InvokeTransactionReceiptResponse,
   Event as StarkEvent,
-  Account,
+  SequencerProvider,
 } from "starknet";
 import { starknetKeccak } from "starknet/dist/utils/hash";
 import {
@@ -35,7 +31,6 @@ import {
   EventFilter,
   Listener,
   Provider,
-  Log,
   TransactionRequest,
   TransactionResponse,
   Block,
@@ -55,20 +50,17 @@ import { readFileSync } from "fs";
 import { normalizeAddress } from "../utils";
 import { abiEncode } from "../abiEncode";
 import { WarpSigner } from "./Signer";
+import {getSequencerProvder} from "../provider";
 
 const ASSERT_ERROR = "An ASSERT_EQ instruction failed";
 
 export class ContractInfo {
   private name: string;
   private solidityFile: string;
-  private deployedAddress = "";
-  private deployTxHash = "";
-  private cairoFiles: string[];
 
-  constructor(name: string, solidityFile: string, cairoFile: string[] = []) {
+  constructor(name: string, solidityFile: string) {
     this.name = name;
     this.solidityFile = solidityFile;
-    this.cairoFiles = cairoFile;
   }
 
   getName() {
@@ -77,14 +69,6 @@ export class ContractInfo {
 
   getSolidityFile() {
     return this.solidityFile;
-  }
-
-  setDeployedAddress(add: string) {
-    this.deployedAddress = add;
-  }
-
-  setDeployTxHash(hash: string) {
-    this.deployTxHash = hash;
   }
 
   getCairoFile() {
@@ -114,14 +98,13 @@ export class WarpContract extends EthersContract {
   // address if an ENS name was used in the constructor
   readonly resolvedAddress: Promise<string>;
 
-  starknetAccount: Account | null = null;
+  private sequencerProvider: SequencerProvider;
 
   snTopicToName: { [key: string]: string } = {};
   // ethTopic here referes to the keccak of "event_name + selector"
   // because that's the mangling that warp produces
   private ethTopicToEvent: { [key: string]: [EventFragment, string] } = {};
 
-  private starknetProvider: SequencerProvider;
   constructor(
     private starknetContract: StarknetContract,
     private starknetContractFactory: StarknetContractFactory,
@@ -140,7 +123,7 @@ export class WarpContract extends EthersContract {
     this.resolvedAddress = Promise.resolve(starknetContract.address);
     this._deployedPromise = Promise.resolve(this);
     // @ts-ignore
-    this.starknetProvider = starknetContract.providerOrAccount.provider as SequencerProvider;
+    this.sequencerProvider = getSequencerProvder();
     this.solidityCairoRemap();
 
     const compiledCairo = JSON.parse(
@@ -195,8 +178,7 @@ export class WarpContract extends EthersContract {
   // Reconnect to a different signer or provider
   connect(signerOrProvider: Signer | Provider | string): EthersContract {
     const warpSigner = signerOrProvider as WarpSigner;
-    this.starknetContract.providerOrAccount = warpSigner.starkNetSigner;
-    this.starknetAccount = warpSigner.starkNetSigner;
+    this.starknetContract.connect(warpSigner.starkNetSigner);
     return this;
   }
 
@@ -295,13 +277,16 @@ export class WarpContract extends EthersContract {
       try {
         console.log("INVOKE FUNCTION");
         // console.log(await this.starknetAccount?.getNonce())
-        const invokeResponse = await this.starknetAccount?.execute(
-          {
-            contractAddress: this.starknetContract.address,
-            calldata: calldata,
-            entrypoint: cairoFuncName,
-          },
-        );
+        let invokeResponse : InvokeFunctionResponse;
+        if (this.starknetContract.providerOrAccount instanceof WarpSigner) {
+          invokeResponse = await this.starknetContract.providerOrAccount.starkNetSigner.execute(
+            {
+              contractAddress: this.starknetContract.address,
+              calldata: calldata,
+              entrypoint: cairoFuncName,
+            },
+          );
+        }
         // console.log(await this.starknetAccount?.getNonce())
 
         console.log("Before to etheresTransaction");
@@ -401,10 +386,10 @@ export class WarpContract extends EthersContract {
     { transaction_hash }: InvokeFunctionResponse,
     data: string
   ): Promise<ContractTransaction> {
-    const txStatus = await this.starknetProvider.getTransactionStatus(
+    const txStatus = await this.sequencerProvider.getTransactionStatus(
       transaction_hash
     );
-    const txTrace = await this.starknetProvider.getTransactionTrace(
+    const txTrace = await this.sequencerProvider.getTransactionTrace(
       transaction_hash
     );
 

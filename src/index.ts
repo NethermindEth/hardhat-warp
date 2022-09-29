@@ -6,7 +6,7 @@ import {
   TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS,
   TASK_COMPILE_SOLIDITY_RUN_SOLC,
 } from "hardhat/builtin-tasks/task-names";
-import { extendConfig, subtask, task, types } from "hardhat/config";
+import { extendConfig, subtask, types } from "hardhat/config";
 import { glob } from "hardhat/internal/util/glob";
 import { CompilerInput, HardhatConfig, HardhatUserConfig } from "hardhat/types";
 import path from "path";
@@ -22,7 +22,6 @@ import {
   TASK_COMPILE_WARP_PRINT_ETHEREUM_PROMPT,
   TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT,
   TASK_COMPILE_WARP_RUN_BINARY,
-  TASK_DEPLOY_WARP,
   TASK_DEPLOY_WARP_GET_CAIRO_PATH,
   TASK_WRITE_CONTRACT_INFO,
 } from "./task-names";
@@ -38,9 +37,8 @@ import {
 import { getTestAccounts, getTestProvider } from './fixtures';
 
 import { extendEnvironment } from "hardhat/config";
-import { getStarknetContractFactory } from "./testing";
 import {WarpSigner} from "./ethers/Signer";
-import {ContractFactory} from "./ethers/ContractFactory";
+import {ContractFactory, getStarknetContractFactory} from "./ethers/ContractFactory";
 
 // Hack to wreck safety
 
@@ -75,15 +73,23 @@ extendEnvironment((hre) => {
   // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
   hre.ethers.getSigners = async () => {
     const testProvider = getTestProvider();
-    const starknetSigners = getTestAccounts(testProvider);
-    const ethersSigners = await getSignersEthers();
+    const starknetSigners = await getTestAccounts(testProvider);
 
-    const warpSigners = [
-      new WarpSigner(ethersSigners[0], starknetSigners[0]),
-      new WarpSigner(ethersSigners[1], starknetSigners[1])
-    ]
+    const warpSigners = starknetSigners.map((starknetSigner) =>
+      new WarpSigner(starknetSigner));
 
     return Promise.resolve(warpSigners);
+  };
+
+  // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
+  hre.ethers.getSigner = async (address: string) => {
+    if (address) throw new Error("Signers at exact address not supported yet")
+    const testProvider = getTestProvider();
+    const [starknetSigner] = await getTestAccounts(testProvider);
+
+    const warpSigner = new WarpSigner(starknetSigner);
+
+    return Promise.resolve(warpSigner);
   };
 
   // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
@@ -341,63 +347,3 @@ subtask(TASK_DEPLOY_WARP_GET_CAIRO_PATH)
     // TODO: catch exception
     return contract.getCairoFile();
   });
-
-task(TASK_DEPLOY_WARP)
-  .addParam(
-    "contractName",
-    "Name of the contract to deploy",
-    undefined,
-    types.string,
-    false
-  )
-  .addParam(
-    "inputs",
-    "Space separated constructor inputs for the solidity contract being deployed to Starknet",
-    "",
-    types.string,
-    true
-  )
-  .addFlag("testnet", "Flag to change deploy target to Starknet testnet")
-  .addFlag("noWallet", "Deploy without using wallet")
-  .setAction(
-    async (
-      {
-        contractName,
-        inputs,
-        testnet,
-        noWallet,
-      }: {
-        contractName: string;
-        inputs: string;
-        testnet: boolean;
-        noWallet: boolean;
-      },
-      { config, run }
-    ) => {
-      const cairoPath = await run(TASK_DEPLOY_WARP_GET_CAIRO_PATH, {
-        contractName: contractName,
-      });
-      const transpiler = new Transpiler(config.paths.warp);
-
-      const result = await transpiler.deploy(
-        cairoPath,
-        inputs,
-        testnet,
-        noWallet ? "noWallet" : config.starknet.wallet
-      );
-
-      const contAd = result.match("Contract address: (0x[0-9a-z]+)");
-      const TxHash = result.match("Transaction hash: (0x[0-9a-z]+)");
-
-      if (contAd === null || TxHash === null) {
-        throw new WarpPluginError("Failed to save contract deploy details");
-      }
-
-      const Contract = getContract(contractName);
-      Contract.setDeployTxHash(TxHash[1]);
-      Contract.setDeployedAddress(contAd[1]);
-      saveContract(Contract);
-      console.log("Deployment details of the contract have been saved");
-      return result;
-    }
-  );

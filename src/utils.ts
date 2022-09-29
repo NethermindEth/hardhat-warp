@@ -79,7 +79,7 @@ export function saveContract(contract: ContractInfo) {
     const readData = fs.readFileSync("warp_output/contracts.json", "utf-8");
     const existingData = JSON.parse(readData) as ContractInfo[];
     existingData.forEach((ctr) => {
-      const temp = new ContractInfo("", "", []);
+      const temp = new ContractInfo("", "");
       Object.assign(temp, ctr);
       if (temp.getName() !== contract.getName()) contracts.push(temp);
     });
