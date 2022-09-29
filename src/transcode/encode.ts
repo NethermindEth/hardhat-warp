@@ -101,15 +101,18 @@ export function encodeComplex(
     ];
   } else if (type.baseType === "tuple") {
     if (typeof value !== "object") {
-      throw new Error("Expected Object input for transcoding tuple types");
+      throw new Error("Expected Object input for transcoding struct types");
     }
 
-    const value_ = value as { [key: string]: SolValue };
-    const tupleValues = Object.values(value_);
+    const tupleValues = value as { [key: string]: SolValue };
+    const keys = new Set(Object.keys(tupleValues));
 
-    return type.components.flatMap((type, index) =>
-      encode_(type, makeIterator(tupleValues[index]))
-    );
+    return type.components.flatMap((type) => {
+      if (!keys.has(type.name)) {
+        throw new Error(`Unknown struct member: ${type.name}`);
+      }
+      return encode_(type, makeIterator(tupleValues[type.name]));
+    });
   }
   throw new Error(`Can't encode complex type ${type}`);
 }
