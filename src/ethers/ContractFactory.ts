@@ -14,7 +14,7 @@ import { encode } from "../transcode";
 import { readFileSync } from "fs";
 import { WarpSigner } from "./Signer";
 import {getContract} from "../utils";
-import {getSequencerProvder} from "../provider";
+import {getDefaultAccount, getSequencerProvder} from "../provider";
 const declaredContracts: Set<string> = new Set();
 
 export class ContractFactory {
@@ -68,9 +68,7 @@ export class ContractFactory {
   }
 
   async deploy(...args: Array<any>): Promise<EthersContract> {
-    const contractsToDeclare = this.getContractsToDeclare();
-    console.log(contractsToDeclare);
-    const fact = contractsToDeclare
+    await Promise.all(this.getContractsToDeclare()
       .filter((c) => {
         if (declaredContracts.has(c)) {
           return false;
@@ -78,15 +76,13 @@ export class ContractFactory {
         declaredContracts.add(c);
         return true;
       })
-      .map((c) => getStarknetContractFactory(c));
+      .map(async (name) =>{
+        const factory = await getStarknetContractFactory(name)
 
-    await Promise.all(
-      fact.map((c) =>
         this.starknetContractFactory.providerOrAccount.declareContract({
-          contract: c.compiledContract,
-        })
-      )
-    );
+          contract: factory.compiledContract,
+      })}))
+    ;
 
     const inputs = encode(
       this.interface.deploy.inputs,
@@ -120,6 +116,7 @@ export class ContractFactory {
 
   connect(account: WarpSigner): ContractFactory {
     this.starknetContractFactory.connect(account.starkNetSigner);
+    this.starknetContractFactory.providerOrAccount = account.starkNetSigner;
     return this;
   }
 
@@ -147,13 +144,13 @@ export class ContractFactory {
   }
 }
 
-export function getStarknetContractFactory(contractName: string) : StarknetContractFactory {
+export async function getStarknetContractFactory(contractName: string) : Promise<StarknetContractFactory> {
   const contract = getContract(contractName);
   const compiledContract =
         json.parse(readFileSync(contract.getCompiledJson()).toString('ascii'));
   return new StarknetContractFactory(
     compiledContract,
-    getSequencerProvder(),
+    await getDefaultAccount(),
     compiledContract.abi,
   );
 }

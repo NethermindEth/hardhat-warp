@@ -51,7 +51,7 @@ extendEnvironment((hre) => {
       name,
       ethersSigners[0]
     );
-    const starknetContractFactory = getStarknetContractFactory(name);
+    const starknetContractFactory = await getStarknetContractFactory(name);
     const contract = getContract(name);
     const cairoFile = contract.getCairoFile().slice(0, -6).concat(".cairo");
     return Promise.resolve(

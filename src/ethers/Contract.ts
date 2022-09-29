@@ -7,6 +7,7 @@ import {
   InvokeTransactionReceiptResponse,
   Event as StarkEvent,
   SequencerProvider,
+  Account,
 } from "starknet";
 import { starknetKeccak } from "starknet/dist/utils/hash";
 import {
@@ -42,6 +43,7 @@ import { FIELD_PRIME } from "starknet/dist/constants";
 import {readFileSync} from "fs";
 import {normalizeAddress} from "../utils";
 import {WarpSigner} from "./Signer";
+import {getSequencerProvder} from "../provider";
 
 const ASSERT_ERROR = "An ASSERT_EQ instruction failed";
 
@@ -114,7 +116,7 @@ export class WarpContract extends EthersContract {
     this.resolvedAddress = Promise.resolve(starknetContract.address);
     this._deployedPromise = Promise.resolve(this);
     // @ts-ignore
-    this.sequencerProvider = getSequencerProvder();
+    this.sequencerProvider = getSequencerProvder()
     this.solidityCairoRemap();
 
     const compiledCairo = JSON.parse(
@@ -241,28 +243,14 @@ export class WarpContract extends EthersContract {
           args,
         )
 
-        let invokeResponse : InvokeFunctionResponse;
-        if (this.starknetContract.providerOrAccount instanceof WarpSigner) {
-          invokeResponse = await this.starknetContract.providerOrAccount.starkNetSigner.execute(
-            {
-              contractAddress: this.starknetContract.address,
-              calldata: calldata,
-              entrypoint: cairoFuncName,
-            },
-          );
-        } else {
-          invokeResponse = await this.starknetContract.providerOrAccount.invokeFunction(
-            {
-              contractAddress: this.starknetContract.address,
-              calldata,
-              entrypoint: cairoFuncName,
-            },
-            {
-              // Set maxFee to some high number for goerli
-              maxFee: process.env.STARKNET_PROVIDER_BASE_URL ? undefined : (2n ** 250n).toString()
-            }
-          );
-        }
+        if (! (this.starknetContract.providerOrAccount instanceof Account)) throw new Error("Expect contract provider to be account");
+        const invokeResponse = await this.starknetContract.providerOrAccount.execute(
+          {
+            contractAddress: this.starknetContract.address,
+            calldata: calldata,
+            entrypoint: cairoFuncName,
+          },
+        );
 
         const abiEncodedInputs = abiCoder.encode(fragment.inputs, args.map(a => this.argStringifier(a)))
         const sigHash = this.ethersContractFactory.interface.getSighash(fragment);
@@ -359,7 +347,7 @@ export class WarpContract extends EthersContract {
     if (txStatus.tx_status === "NOT_RECEIVED") {
       throw new Error("Failed transactions not supported yet");
     }
-    const txResponse = await this.starknetProvider.getTransaction(
+    const txResponse = await this.sequencerProvider.getTransaction(
       transaction_hash
     );
     // Handle failure case
@@ -369,8 +357,8 @@ export class WarpContract extends EthersContract {
           (JSON.stringify(txStatus.tx_failure_reason) || "")
       );
     }
-    const txBlock = await this.starknetProvider.getBlock(txStatus.block_hash);
-    const latestBlock = await this.starknetProvider.getBlock();
+    const txBlock = await this.sequencerProvider.getBlock(txStatus.block_hash);
+    const latestBlock = await this.sequencerProvider.getBlock();
 
     console.log("To ethers conversion happened");
     return {
@@ -385,20 +373,20 @@ export class WarpContract extends EthersContract {
       value: BigNumber.from(0),
       chainId: -1,
       wait: async (_: number | undefined) => {
-        this.starknetProvider.waitForTransaction(transaction_hash);
-        const txStatus = await this.starknetProvider.getTransactionStatus(
+        this.sequencerProvider.waitForTransaction(transaction_hash);
+        const txStatus = await this.sequencerProvider.getTransactionStatus(
           transaction_hash
         );
-        const txBlock = await this.starknetProvider.getBlock(
+        const txBlock = await this.sequencerProvider.getBlock(
           txStatus.block_hash
         );
-        const txTrace = await this.starknetProvider.getTransactionTrace(
+        const txTrace = await this.sequencerProvider.getTransactionTrace(
           transaction_hash
         );
-        const txReceipt = (await this.starknetProvider.getTransactionReceipt(
+        const txReceipt = (await this.sequencerProvider.getTransactionReceipt(
           transaction_hash
         )) as InvokeTransactionReceiptResponse;
-        const latestBlock = await this.starknetProvider.getBlock();
+        const latestBlock = await this.sequencerProvider.getBlock();
         const ethEvents = this.starknetEventsToEthEvents(
           txReceipt.events,
           txBlock.block_number,
