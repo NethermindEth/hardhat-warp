@@ -37,7 +37,7 @@ import {
   Block,
   TransactionReceipt,
 } from "@ethersproject/abstract-provider";
-import {id as keccak} from "@ethersproject/hash";
+import { id as keccak } from "@ethersproject/hash";
 import { abiCoder, decode, decodeEvents, decode_, encode } from "../transcode";
 import { FIELD_PRIME } from "starknet/dist/constants";
 import {readFileSync} from "fs";
@@ -251,7 +251,9 @@ export class WarpContract extends EthersContract {
           undefined,
           {
             // Set maxFee to some high number for goerli
-            maxFee: process.env.STARKNET_PROVIDER_BASE_URL ? undefined : (2n ** 250n).toString()
+            maxFee: process.env.STARKNET_PROVIDER_BASE_URL
+              ? undefined
+              : (2n ** 250n).toString(),
           }
         );
         const abiEncodedInputs = abiCoder.encode(fragment.inputs, args)
@@ -278,10 +280,7 @@ export class WarpContract extends EthersContract {
       solName + "_" + this.interface.getSighash(fragment).slice(2); // Todo finish this keccak (use web3)
     // @ts-ignore
     return async (...args: any[]) => {
-      const calldata = encode(
-        fragment.inputs,
-        args,
-      );
+      const calldata = encode(fragment.inputs, args);
       try {
         const output_before = await this.starknetContract.providerOrAccount.callContract(
           {
@@ -433,37 +432,37 @@ export class WarpContract extends EthersContract {
     transactionIndex: number,
     transactionHash: string
   ): Array<Event> {
-    return events.map(
-      (e, i) =>
-      {
-        const currentTopic = e.keys[0];
-        const [eventFragment, selector] = this.ethTopicToEvent[this.snTopicToName[currentTopic]];
+    return events.map((e, i) => {
+      const currentTopic = e.keys[0];
+      const [eventFragment, selector] = this.ethTopicToEvent[
+        this.snTopicToName[currentTopic]
+      ];
 
-        const results = decodeEvents(eventFragment.inputs, e.data);
-        const resultsArray = decode_(eventFragment.inputs, e.data.values());
-        console.log("Going to encode");
-        return {
-          blockNumber,
-          blockHash,
-          transactionIndex,
-          removed: false,
-          address: normalizeAddress(e.from_address),
-          // abi encoded data
-          data: abiCoder.encode(eventFragment.inputs, resultsArray),
-          topics: [selector],
-          transactionHash,
-          logIndex: i,
-
-          event: eventFragment.name,
-          eventSignature: eventFragment.format("sighash"),
-          args: results,
-          removeListener: () => { throw new Error("Duck you") },
-          // TODO: use the functions when they are seperated
-          getBlock: () => Promise.resolve({} as Block),
-          getTransaction: () => Promise.resolve({} as TransactionResponse),
-          getTransactionReceipt: () => Promise.resolve({} as TransactionReceipt),
-        }
-      }
-    );
+      const results = decodeEvents(eventFragment.inputs, e.data);
+      const resultsArray = decode_(eventFragment.inputs, e.data.values());
+      console.log("Going to encode");
+      return {
+        blockNumber,
+        blockHash,
+        transactionIndex,
+        removed: false,
+        address: normalizeAddress(e.from_address),
+        // abi encoded data
+        data: abiCoder.encode(eventFragment.inputs, resultsArray),
+        topics: [selector],
+        transactionHash,
+        logIndex: i,
+        event: eventFragment.name,
+        eventSignature: eventFragment.format("sighash"),
+        args: results,
+        removeListener: () => {
+          throw new Error("Duck you");
+        },
+        // TODO: use the functions when they are seperated
+        getBlock: () => Promise.resolve({} as Block),
+        getTransaction: () => Promise.resolve({} as TransactionResponse),
+        getTransactionReceipt: () => Promise.resolve({} as TransactionReceipt),
+      };
+    });
   }
 }
