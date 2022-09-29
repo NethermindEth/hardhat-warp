@@ -5,12 +5,39 @@ import { HashInfo } from "./Hash";
 import * as fs from "fs";
 import * as os from 'os';
 import * as path from 'path';
+import {exec} from 'child_process';
 
 export class WarpPluginError extends NomicLabsHardhatPluginError {
   constructor(message: string, parent?: Error, shouldBeReported?: boolean) {
     super("hardhat-warp", message, parent, shouldBeReported);
   }
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function compile(input: any): Promise<any> {
+  const output: string = await new Promise((resolve, reject) => {
+    const process = exec(
+      // TODO: support both sol 7 aswell
+      `${nethersolcPath('8')} --standard-json`,
+      {
+        maxBuffer: 1024 * 1024 * 1024 * 1024,
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (err: any, stdout: any) => {
+        if (err !== null) {
+          return reject(err);
+        }
+        resolve(stdout);
+      }
+    );
+
+    process.stdin!.write(JSON.stringify(input));
+    process.stdin!.end();
+  });
+
+  return JSON.parse(output);
+}
+
 
 export function colorLogger(str: string) {
   console.log(str.blue.bold);

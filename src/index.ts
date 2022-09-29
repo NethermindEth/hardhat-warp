@@ -19,42 +19,12 @@ import {
   TASK_DEPLOY_WARP_GET_CAIRO_PATH, TASK_WRITE_CONTRACT_INFO
 } from './task-names';
 import {Transpiler} from './transpiler';
-import {checkHash, colorLogger, getContract, nethersolcPath, saveContract, WarpPluginError} from './utils';
+import {checkHash, colorLogger, compile, getContract, saveContract, WarpPluginError} from './utils';
 
 import { extendEnvironment } from "hardhat/config";
 import {getStarknetContractFactory} from './testing';
 
 import {ContractFactory} from './ethers/ContractFactory';
-import {exec} from 'child_process';
-
-export class NativeCompiler {
-  constructor(private _pathToSolc: string) {}
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public async compile(input: any) {
-    const output: string = await new Promise((resolve, reject) => {
-      const process = exec(
-        `${this._pathToSolc} --standard-json`,
-        {
-          maxBuffer: 1024 * 1024 * 1024 * 1024,
-        },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (err: any, stdout: any) => {
-          if (err !== null) {
-            return reject(err);
-          }
-          resolve(stdout);
-        }
-      );
-
-      process.stdin!.write(JSON.stringify(input));
-      process.stdin!.end();
-    });
-
-    return JSON.parse(output);
-  }
-}
-
 // Hack to wreck safety
 
 extendEnvironment((hre) => {
@@ -120,10 +90,7 @@ subtask(TASK_COMPILE_SOLIDITY_RUN_SOLC)
   .setAction(
     async ({ input }: { input: CompilerInput; solcPath: string }) => {
 
-      // TODO: support both sol 7 aswell
-      const compiler = new NativeCompiler(nethersolcPath('8'));
-
-      const output = await compiler.compile(input);
+      const output = await compile(input);
 
       return output;
     }
