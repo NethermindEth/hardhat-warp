@@ -19,6 +19,7 @@ export class Transpiler {
 
   public transpile(inputPath: string) {
     console.log(`Compiling: ${inputPath}`);
+    console.log(this._pathToWarp)
     execSync(`${this._pathToWarp} transpile ${inputPath} --compile-cairo`, {stdio: 'inherit'});
   }
 

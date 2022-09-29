@@ -7,29 +7,33 @@
   "license": "MIT",
   "private": false,
   "devDependencies": {
+    "typescript": "^4.7.4",
+    "@nethermindeth/warp": "^2.1.1",
     "@typechain/starknet": "^0.2.3",
     "@types/chai": "^4.1.7",
     "@types/elliptic": "^6.4.14",
     "@types/fs-extra": "^5.0.4",
+    "@types/glob": "^7.2.0",
     "@types/mkdirp": "^1.0.2",
     "@types/mocha": "^5.2.6",
     "@types/node": "^18.6.3",
     "@typescript-eslint/eslint-plugin": "^5.30.7",
     "@typescript-eslint/parser": "^5.30.7",
     "chai": "^4.2.0",
+    "colors": "^1.4.0",
+    "eslint": "^8.23.1",
     "eslint-config-google": "^0.14.0",
+    "ethers": "^5.7.0",
+    "solc-typed-ast": "^10.1.6",
+    "starknet": "^4.4.2",
     "hardhat": "^2.0.0",
     "mocha": "^7.1.2",
     "prettier": "2.0.5",
     "ts-node": "^8.1.0",
-    "tslint": "^5.16.0",
-    "tslint-config-prettier": "^1.18.0",
-    "tslint-plugin-prettier": "^2.0.1",
     "typechain": "^8.1.0"
   },
   "scripts": {
-    "lint:fix": "prettier --write 'src/**/*.{js,ts}' 'test/**/*.{js,ts}' && tslint --fix --config tslint.json --project tsconfig.json",
-    "lint": "tslint --config tslint.json --project tsconfig.json",
+    "lint": "eslint src",
     "test": "mocha --exit --recursive 'test/**/*.test.ts'",
     "build": "tsc",
     "watch": "tsc -w",
@@ -37,12 +41,5 @@
   },
   "peerDependencies": {
     "hardhat": "^2.0.0"
-  },
-  "dependencies": {
-    "@types/glob": "^7.2.0",
-    "colors": "^1.4.0",
-    "eslint": ">=5.16.0",
-    "starknet": "^3.18.2",
-    "typescript": "^4.7.4"
   }
 }
