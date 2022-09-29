@@ -28,7 +28,7 @@ import {
   saveContract,
   WarpPluginError,
 } from "./utils";
-import { getTestAccounts, getTestProvider } from './fixtures';
+import { getDevNetPreloadedAccounts, getTestProvider } from './provider';
 
 import { extendEnvironment } from "hardhat/config";
 import {WarpSigner} from "./ethers/Signer";
@@ -67,10 +67,11 @@ extendEnvironment((hre) => {
   // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
   hre.ethers.getSigners = async () => {
     const testProvider = getTestProvider();
-    const starknetSigners = await getTestAccounts(testProvider);
+    const starknetSigners = await getDevNetPreloadedAccounts(testProvider);
 
+    // We use the first signer as the default account so give the user fresh ones
     const warpSigners = starknetSigners.map((starknetSigner) =>
-      new WarpSigner(starknetSigner));
+      new WarpSigner(starknetSigner)).slice(1);
 
     return Promise.resolve(warpSigners);
   };
@@ -79,7 +80,8 @@ extendEnvironment((hre) => {
   hre.ethers.getSigner = async (address: string) => {
     if (address) throw new Error("Signers at exact address not supported yet")
     const testProvider = getTestProvider();
-    const [starknetSigner] = await getTestAccounts(testProvider);
+    // We use the first signer as the default account so give the user a fresh one
+    const [_, starknetSigner] = await getDevNetPreloadedAccounts(testProvider);
 
     const warpSigner = new WarpSigner(starknetSigner);
 

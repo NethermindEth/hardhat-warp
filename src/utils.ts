@@ -6,8 +6,7 @@ import * as fs from "fs";
 import * as os from 'os';
 import * as path from 'path';
 import {exec} from 'child_process';
-import { Account, ProviderInterface, SequencerProvider } from "starknet";
-import { getKeyPair } from "starknet/dist/utils/ellipticCurve";
+import { SequencerProvider } from "starknet";
 
 export class WarpPluginError extends NomicLabsHardhatPluginError {
   constructor(message: string, parent?: Error, shouldBeReported?: boolean) {
@@ -151,20 +150,6 @@ export type StarknetDevnetGetAccountsResponse = {
   public_key: string;
 };
 
-export async function getStarkNetDevNetAccounts(): Promise<
-  Array<StarknetDevnetGetAccountsResponse>
-> {
-  const devnet_feeder_gateway_url: string =
-    process.env.STARKNET_PROVIDER_BASE_URL != undefined
-      ? process.env.STARKNET_PROVIDER_BASE_URL
-      : "http://127.0.0.1:5050";
-  const response = await fetch(
-    `${devnet_feeder_gateway_url}/predeployed_accounts`,
-    { method: "GET" }
-  );
-  return response.json();
-}
-
 export const getTestProvider = () => {
   // TODO check if provider url exists first.
   const provider = new SequencerProvider({
@@ -178,26 +163,4 @@ export const getTestProvider = () => {
   };
 
   return provider;
-};
-
-// test account with fee token balance
-export const getTestAccounts = async (provider: ProviderInterface) => {
-  const accounts = await getStarkNetDevNetAccounts();
-
-  const testAccountAAddress = accounts[0].address;
-  const testAccountAPrivateKey = accounts[0].private_key;
-  const testAccountA = new Account(
-    provider,
-    testAccountAAddress,
-    getKeyPair(testAccountAPrivateKey)
-  );
-
-  const testAccountBAddress = accounts[0].address;
-  const testAccountBPrivateKey = accounts[0].private_key;
-  const testAccountB = new Account(
-    provider,
-    testAccountBAddress,
-    getKeyPair(testAccountBPrivateKey)
-  );
-  return [testAccountA, testAccountB];
 };
