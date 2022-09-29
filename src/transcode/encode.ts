@@ -1,9 +1,8 @@
 import { BigNumber } from "ethers";
 import { isBytes, ParamType } from "ethers/lib/utils";
-import {isBigNumberish} from "@ethersproject/bignumber/lib/bignumber"
-import {isPrimitiveParam, SolValue, toUintOrFelt, safeNext } from "./utils";
-import {isNull} from "util";
-
+import { isBigNumberish } from "@ethersproject/bignumber/lib/bignumber";
+import { isPrimitiveParam, SolValue, toUintOrFelt, safeNext } from "./utils";
+import { isNull } from "util";
 
 export function encode(types: ParamType[], inputs: SolValue[]): string[] {
   return encodeParams(types, inputs.values());
@@ -35,25 +34,21 @@ function encodePrimitive(
     return encodeAsUintOrFelt(
       typeString,
       inputs,
-      parseInt(typeString.slice(4), 10),
-    )
+      parseInt(typeString.slice(4), 10)
+    );
   }
   if (typeString.startsWith("int")) {
     return encodeAsUintOrFelt(
       typeString,
       inputs,
-      parseInt(typeString.slice(3), 10),
+      parseInt(typeString.slice(3), 10)
     );
   }
   if (typeString === "address") {
-    return encodeAsUintOrFelt(
-      typeString,
-      inputs,
-      251
-    );
+    return encodeAsUintOrFelt(typeString, inputs, 251);
   }
   if (typeString === "bool") {
-    const val = safeNext(inputs)
+    const val = safeNext(inputs);
     if (typeof val === "boolean") {
       return val ? ["1"] : ["0"];
     }
@@ -66,7 +61,7 @@ function encodePrimitive(
     return encodeAsUintOrFelt(typeString, inputs, nbits);
   }
   if (typeString === "bytes") {
-    let value = safeNext(inputs)
+    let value = safeNext(inputs);
     if (typeof value === "string") {
       // remove 0x
       value = value.substring(2);
@@ -83,7 +78,7 @@ function encodePrimitive(
       const length = value.length / 2;
       if (length % 2 !== 0) throw new Error("bytes must be even");
 
-      const bytes = Array.from(value).map(byte => byte.toString());
+      const bytes = Array.from(value).map((byte) => byte.toString());
       return [length.toString(), ...bytes];
     }
     throw new Error(`Can't encode ${value} as bytes`);
@@ -94,46 +89,63 @@ function encodePrimitive(
 export function encodeComplex(
   type: ParamType,
   inputs: IterableIterator<SolValue>
-) : string[] {
-  const value = safeNext(inputs)
+): string[] {
+  const value = safeNext(inputs);
+
   if (type.baseType === "array") {
-    if (!Array.isArray(value)) throw new Error("Array must be of array type")
+    if (!Array.isArray(value)) throw new Error(`Array must be of array type`);
     // array type
-    const length =
-      type.arrayLength === -1 ? [value.length.toString()] : [];
+    const length = type.arrayLength === -1 ? [value.length.toString()] : [];
     return [
       ...length,
-      ...value.flatMap((val) => encode_(type.arrayChildren, makeIterator(val)))
+      ...value.flatMap((val) => encode_(type.arrayChildren, makeIterator(val))),
     ];
   } else if (type.baseType === "tuple") {
-    const value_ = safeNext(inputs)
+    /*
+    const value_ = safeNext(makeIterator(value));
     if (
-      typeof value_ === "bigint" || value_ instanceof BigInt ||
-      typeof value_ === "string" || value_ instanceof String ||
-      typeof value_ === "number" || value_ instanceof Number ||
+      typeof value_ === "bigint" ||
+      value_ instanceof BigInt ||
+      typeof value_ === "string" ||
+      value_ instanceof String ||
+      typeof value_ === "number" ||
+      value_ instanceof Number ||
       typeof value_ === "boolean" ||
       Array.isArray(value_) ||
-      value_ instanceof BigNumber 
+      value_ instanceof BigNumber
     ) {
-      throw new Error("Struct argument incorrect type")
+      throw new Error("Struct argument incorrect type");
     }
-    const value = value_ as {[key: string]: SolValue}
+    const value2 = value_ as { [key: string]: SolValue };
 
-    if (typeof value !== "object") throw new Error("Struct argument incorrect type");
+    if (typeof value2 !== "object")
+      throw new Error("Struct argument incorrect type");
+    */
 
-    return type.components.flatMap((type) => {
-      if (isNull(type.name)) throw new Error("Struct has null component");
-      if (!(type.name in value)) throw new Error(`Struct doesn't include required component ${type.name}`);
+    if (typeof value !== "object") {
+      throw new Error("Expected Object input for transcoding tuple types");
+    }
 
-      return encode_(type, makeIterator(value[type.name]))
-    })
+    const tupleValues = value as { [key: string]: SolValue };
+    const valueValues = Object.values(tupleValues);
+
+    return type.components.flatMap((type, index) => {
+      /*
+      if (type.name === null) throw new Error("Struct has null component");
+      if (!(type.name in value2))
+        throw new Error(
+          `Struct doesn't include required component ${type.name}`
+        );
+      */
+      return encode_(type, makeIterator(valueValues[index]));
+    });
   }
-  throw new Error(`Can't encode complex type ${type}`)
+  throw new Error(`Can't encode complex type ${type}`);
 }
 
 export function makeIterator(value: SolValue) {
   if (Array.isArray(value)) {
-    return value.values()
+    return value.values();
   }
 
   return [value].values();
@@ -144,12 +156,9 @@ export function encodeAsUintOrFelt(
   inputs: IterableIterator<SolValue>,
   nbits: number
 ): string[] {
-  const value = safeNext(inputs)
+  const value = safeNext(inputs);
   if (isBigNumberish(value)) {
-    return toUintOrFelt(
-      BigNumber.from(value).toBigInt(),
-      nbits
-    ).map((x) =>
+    return toUintOrFelt(BigNumber.from(value).toBigInt(), nbits).map((x) =>
       x.toString()
     );
   }
