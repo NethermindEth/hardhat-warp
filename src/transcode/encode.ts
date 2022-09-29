@@ -2,7 +2,6 @@ import { BigNumber } from "ethers";
 import { isBytes, ParamType } from "ethers/lib/utils";
 import { isBigNumberish } from "@ethersproject/bignumber/lib/bignumber";
 import { isPrimitiveParam, SolValue, toUintOrFelt, safeNext } from "./utils";
-import { isNull } from "util";
 
 export function encode(types: ParamType[], inputs: SolValue[]): string[] {
   return encodeParams(types, inputs.values());
