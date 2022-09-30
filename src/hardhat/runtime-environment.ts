@@ -1,7 +1,7 @@
 import {extendEnvironment} from "hardhat/config";
 import {ethers} from "ethers";
 
-import { getDefaultAccount, getDevNetPreloadedAccounts, getTestProvider } from '../provider';
+import {getDefaultAccount, getDevNetPreloadedAccounts, getTestProvider} from '../provider';
 import {WarpSigner} from "../ethers/Signer";
 import {ContractFactory, getStarknetContractFactory} from "../ethers/ContractFactory";
 import {getContract} from '../utils';
@@ -35,7 +35,6 @@ extendEnvironment((hre) => {
       ) as ethers.ContractFactory
     );
   };
-
 
   // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
   hre.ethers.getSigners = async () => {
