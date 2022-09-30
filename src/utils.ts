@@ -164,3 +164,17 @@ export const getTestProvider = () => {
 
   return provider;
 };
+
+
+export async function getContractNames(inputPath: string) {
+    const plainSolCode = fs.readFileSync(inputPath, 'utf-8');
+    const solCode = plainSolCode.split('\n');
+
+    const contracts = solCode.map((line) => {
+      // eslint-disable-next-line no-unused-vars
+      const [contract, name, ...other] = line.split(new RegExp('[ ]+'));
+      if (contract !== 'contract') return '';
+      return name;
+    }).filter((val) => val !== '');
+    return contracts;
+  }
