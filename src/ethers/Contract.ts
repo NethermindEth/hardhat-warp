@@ -91,6 +91,11 @@ export class WarpContract extends EthersContract {
   // because that's the mangling that warp produces
   private ethTopicToEvent: { [key: string]: [EventFragment, string] } = {};
 
+  public ignoredTopics = new Set([
+    // Event topic for fee invocation, done by StarkNet
+    '0x99cd8bde557814842a3121e8ddfd433a539b8c9f14bf31ebf108d12e6196e9',
+  ]);
+
   constructor(
     private starknetContract: StarknetContract,
     private ethersContractFactory: EthersContractFactory,
@@ -237,6 +242,8 @@ export class WarpContract extends EthersContract {
 
       if (!(this.starknetContract.providerOrAccount instanceof Account))
         throw new Error('Expect contract provider to be account');
+      // abiCoder checks for correct Sol input
+      const abiEncodedInputs = abiCoder.encode(fragment.inputs, args);
       const invokeResponse = await this.starknetContract.providerOrAccount.execute(
         {
           contractAddress: this.starknetContract.address,
@@ -249,7 +256,6 @@ export class WarpContract extends EthersContract {
           maxFee: process.env.STARKNET_PROVIDER_BASE_URL ? undefined : (2n ** 250n).toString(),
         },
       );
-      const abiEncodedInputs = abiCoder.encode(fragment.inputs, args);
       const sigHash = this.ethersContractFactory.interface.getSighash(fragment);
       const data = sigHash.concat(abiEncodedInputs.substring(2));
       return this.toEtheresTransactionResponse(invokeResponse, data);
@@ -259,6 +265,8 @@ export class WarpContract extends EthersContract {
   private buildCall(solName: string, fragment: FunctionFragment) {
     const cairoFuncName = solName + '_' + this.interface.getSighash(fragment).slice(2); // Todo finish this keccak (use web3)
     return async (...args: SolValue[]) => {
+      // abiCoder checks for correct Sol input
+      abiCoder.encode(fragment.inputs, args);
       const calldata = encode(fragment.inputs, args);
       try {
         const output_before = await this.starknetContract.providerOrAccount.callContract(
@@ -386,36 +394,38 @@ export class WarpContract extends EthersContract {
     blockHash: string,
     transactionIndex: number,
     transactionHash: string,
-  ): Array<Event> {
-    return events.map((e, i) => {
-      const currentTopic = e.keys[0];
-      const [eventFragment, selector] = this.ethTopicToEvent[this.snTopicToName[currentTopic]];
+  ): Event[] {
+    return events
+      .filter((e) => !this.ignoredTopics.has(e.keys[0]))
+      .map((e, i): Event => {
+        const currentTopic = e.keys[0];
+        const [eventFragment, selector] = this.ethTopicToEvent[this.snTopicToName[currentTopic]];
 
-      const results = decodeEvents(eventFragment.inputs, e.data);
-      const resultsArray = decode_(eventFragment.inputs, e.data.values());
-      console.log('Going to encode');
-      return {
-        blockNumber,
-        blockHash,
-        transactionIndex,
-        removed: false,
-        address: normalizeAddress(e.from_address),
-        // abi encoded data
-        data: abiCoder.encode(eventFragment.inputs, resultsArray),
-        topics: [selector],
-        transactionHash,
-        logIndex: i,
-        event: eventFragment.name,
-        eventSignature: eventFragment.format('sighash'),
-        args: results,
-        removeListener: () => {
-          throw new Error('Duck you');
-        },
-        // TODO: use the functions when they are seperated
-        getBlock: () => Promise.resolve({} as Block),
-        getTransaction: () => Promise.resolve({} as TransactionResponse),
-        getTransactionReceipt: () => Promise.resolve({} as TransactionReceipt),
-      };
-    });
+        const results = decodeEvents(eventFragment.inputs, e.data);
+        const resultsArray = decode_(eventFragment.inputs, e.data.values());
+        console.log('Going to encode');
+        return {
+          blockNumber,
+          blockHash,
+          transactionIndex,
+          removed: false,
+          address: normalizeAddress(e.from_address),
+          // abi encoded data
+          data: abiCoder.encode(eventFragment.inputs, resultsArray),
+          topics: [selector],
+          transactionHash,
+          logIndex: i,
+          event: eventFragment.name,
+          eventSignature: eventFragment.format('sighash'),
+          args: results,
+          removeListener: () => {
+            throw new Error('Duck you');
+          },
+          // TODO: use the functions when they are seperated
+          getBlock: () => Promise.resolve({} as Block),
+          getTransaction: () => Promise.resolve({} as TransactionResponse),
+          getTransactionReceipt: () => Promise.resolve({} as TransactionReceipt),
+        };
+      });
   }
 }
