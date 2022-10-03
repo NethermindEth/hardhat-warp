@@ -53,7 +53,7 @@ extendEnvironment((hre) => {
     if (address) throw new Error("Signers at exact address not supported yet")
     const testProvider = getTestProvider();
     // We use the first signer as the default account so give the user a fresh one
-    const [_, starknetSigner] = await getDevNetPreloadedAccounts(testProvider);
+    const [, starknetSigner] = await getDevNetPreloadedAccounts(testProvider);
 
     const warpSigner = new WarpSigner(starknetSigner);
 

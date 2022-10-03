@@ -10,11 +10,11 @@ import { Interface } from "@ethersproject/abi";
 import { TransactionRequest } from "@ethersproject/abstract-provider";
 import { ContractInterface } from "@ethersproject/contracts";
 import { WarpContract } from "./Contract";
-import { encode } from "../transcode";
+import { encode, SolValue } from "../transcode";
 import { readFileSync } from "fs";
 import { WarpSigner } from "./Signer";
 import {getContract} from "../utils";
-import {getDefaultAccount, getSequencerProvder} from "../provider";
+import {getDefaultAccount} from "../provider";
 const declaredContracts: Set<string> = new Set();
 
 export class ContractFactory {
@@ -35,21 +35,12 @@ export class ContractFactory {
   }
 
   // @TODO: Future; rename to populateTransaction?
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getDeployTransaction(...args: Array<any>): TransactionRequest {
     console.warn(
       "getDeployTransaction not implemented for Starknet: using the Eth transaction instead"
     );
     return this.ethersContractFactory.getDeployTransaction(...args);
-  }
-
-  debignumber(args: Array<any>): any {
-    return args.map((arg) => {
-      if (Array.isArray(arg)) return arg.map(this.debignumber);
-      if (arg instanceof Object && arg._isBigNumber) {
-        return arg.toHexString();
-      }
-      return arg;
-    });
   }
 
   getContractsToDeclare() {
@@ -67,7 +58,7 @@ export class ContractFactory {
     return declares.map((v) => v.split("__").slice(-1)[0].split(".")[0]);
   }
 
-  async deploy(...args: Array<any>): Promise<EthersContract> {
+  async deploy(...args: Array<SolValue>): Promise<EthersContract> {
     await Promise.all(this.getContractsToDeclare()
       .filter((c) => {
         if (declaredContracts.has(c)) {
@@ -95,7 +86,6 @@ export class ContractFactory {
     await starknetContract.deployed();
     const contract = new WarpContract(
       starknetContract,
-      this.starknetContractFactory,
       this.ethersContractFactory,
       this.pathToCairoFile
     );
@@ -107,7 +97,6 @@ export class ContractFactory {
     const starknetContract = this.starknetContractFactory.attach(address);
     const contract = new WarpContract(
       starknetContract,
-      this.starknetContractFactory,
       this.ethersContractFactory,
       this.pathToCairoFile
     );
@@ -120,14 +109,17 @@ export class ContractFactory {
     return this;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
   static fromSolidity(compilerOutput: any, signer?: Signer): ContractFactory {
     throw new Error("fromSolidity not yet supported");
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   static getInterface(contractInterface: ContractInterface) {
     throw new Error("getInterface not yet supported");
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   static getContractAddress(tx: {
     from: string;
     nonce: BytesLike | BigNumber | number;
@@ -136,8 +128,11 @@ export class ContractFactory {
   }
 
   static getContract(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     address: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     contractInterface: ContractInterface,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     signer?: Signer
   ): EthersContract {
     throw new Error("getContract not supported");

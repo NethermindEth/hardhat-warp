@@ -81,7 +81,7 @@ export const getTestProvider = () => {
     const originalWaitForTransaction = provider.waitForTransaction.bind(
       provider
     );
-    provider.waitForTransaction = (txHash: string, retryInterval: any) => {
+    provider.waitForTransaction = (txHash: string, retryInterval: number) => {
       return originalWaitForTransaction(txHash, retryInterval || 1000);
     };
   }

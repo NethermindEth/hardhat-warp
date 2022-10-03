@@ -6,7 +6,6 @@ import * as fs from "fs";
 import * as os from 'os';
 import * as path from 'path';
 import {exec} from 'child_process';
-import { SequencerProvider } from "starknet";
 
 export class WarpPluginError extends NomicLabsHardhatPluginError {
   constructor(message: string, parent?: Error, shouldBeReported?: boolean) {
@@ -32,8 +31,10 @@ export async function compile(input: any): Promise<any> {
       }
     );
 
-    process.stdin!.write(JSON.stringify(input));
-    process.stdin!.end();
+    if (process.stdin) {
+      process.stdin.write(JSON.stringify(input));
+      process.stdin.end();
+    }
   });
 
   return JSON.parse(output);
@@ -150,29 +151,13 @@ export type StarknetDevnetGetAccountsResponse = {
   public_key: string;
 };
 
-export const getTestProvider = () => {
-  // TODO check if provider url exists first.
-  const provider = new SequencerProvider({
-    baseUrl: process.env.STARKNET_PROVIDER_BASE_URL!,
-  });
-
-  // accelerate the tests when running locally
-  const originalWaitForTransaction = provider.waitForTransaction.bind(provider);
-  provider.waitForTransaction = (txHash: any, retryInterval: any) => {
-    return originalWaitForTransaction(txHash, retryInterval || 1000);
-  };
-
-  return provider;
-};
-
-
 export async function getContractNames(inputPath: string) {
     const plainSolCode = fs.readFileSync(inputPath, 'utf-8');
     const solCode = plainSolCode.split('\n');
 
     const contracts = solCode.map((line) => {
       // eslint-disable-next-line no-unused-vars
-      const [contract, name, ...other] = line.split(new RegExp('[ ]+'));
+      const [contract, name] = line.split(new RegExp('[ ]+'));
       if (contract !== 'contract') return '';
       return name;
     }).filter((val) => val !== '');

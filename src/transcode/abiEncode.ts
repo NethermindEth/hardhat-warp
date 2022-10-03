@@ -17,18 +17,23 @@ const paramTypeBytes = new RegExp(/^bytes([0-9]*)$/);
 const paramTypeNumber = new RegExp(/^(u?int)([0-9]*)$/);
 
 class WarpAbiCoder extends AbiCoder {
+
+  getAddressCoder(param: ParamType) {
+    const addressCoder = new AddressCoder(param.name);
+    addressCoder.encode = (writer, value) => {
+      const addressVal = BigInt(value)
+      if (addressVal >= 2 ** 251) {
+        throw new Error(`Address is not a valid starknet address ${value}`)
+      }
+      return writer.writeValue(value)
+    }
+    return addressCoder;
+  }
+
   _getCoder(param: ParamType): Coder {
   switch (param.baseType) {
       case "address":
-          const addressCoder = new AddressCoder(param.name);
-          addressCoder.encode = (writer, value) => {
-            const addressVal = BigInt(value)
-            if (addressVal >= 2 ** 251) {
-              throw new Error(`Address is not a valid starknet address ${value}`)
-            }
-            return writer.writeValue(value)
-          }
-          return addressCoder;
+          return this.getAddressCoder(param);
       case "bool":
           return new BooleanCoder(param.name);
       case "string":
@@ -48,7 +53,7 @@ class WarpAbiCoder extends AbiCoder {
   // u?int[0-9]*
   let match = param.type.match(paramTypeNumber);
   if (match) {
-      let size = parseInt(match[2] || "256");
+      const size = parseInt(match[2] || "256");
       if (size === 0 || size > 256 || (size % 8) !== 0) {
           logger.throwArgumentError("invalid " + match[1] + " bit length", "param", param);
       }
@@ -58,7 +63,7 @@ class WarpAbiCoder extends AbiCoder {
   // bytes[0-9]+
   match = param.type.match(paramTypeBytes);
   if (match) {
-      let size = parseInt(match[1]);
+      const size = parseInt(match[1]);
       if (size === 0 || size > 32) {
           logger.throwArgumentError("invalid bytes length", "param", param);
       }

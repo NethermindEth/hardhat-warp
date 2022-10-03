@@ -1,12 +1,13 @@
 import {BigNumber, BigNumberish} from "ethers";
 import {ParamType, Result} from "ethers/lib/utils";
 import {normalizeAddress} from "../utils";
-import {isPrimitiveParam, twosComplementToBigInt, safeNext} from "./utils";
+import {isPrimitiveParam, twosComplementToBigInt, safeNext, SolValue} from "./utils";
 
+type Struct = { [key: string]: SolValue };
 
-export function decode(types: ParamType[], outputs: string[]) {
+export function decode(types: ParamType[], outputs: string[]) : Result {
   const decoded = decode_(types, outputs.values());
-  const namedMembers: { [key: string]: any } = {};
+  const namedMembers: Struct = {};
   types.forEach((ty, i) => {
     namedMembers[ty.name] = decoded[i];
   });
@@ -20,7 +21,7 @@ export function decode(types: ParamType[], outputs: string[]) {
 
 export function decodeEvents(types: ParamType[], outputs: string[]) {
   const decoded = decode_(types, outputs.values());
-  const namedMembers: { [key: string]: any } = {};
+  const namedMembers: Struct = {};
   types.forEach((ty, i) => {
     namedMembers[ty.name] = decoded[i];
   });
@@ -149,7 +150,7 @@ export function decodeComplex(
   } else if (type.components !== null) {
     // struct type
     const indexedMembers = type.components.map((m) => decode_([m], outputs));
-    const namedMembers: { [key: string]: any } = {};
+    const namedMembers: Struct = {};
     type.components.forEach((member, i) => {
       namedMembers[member.name] = indexedMembers[i];
     });

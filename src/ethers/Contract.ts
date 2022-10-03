@@ -1,12 +1,10 @@
 import path from "path";
 import {
   GatewayError,
-  ContractFactory as StarknetContractFactory,
   Contract as StarknetContract,
   InvokeFunctionResponse,
   InvokeTransactionReceiptResponse,
   Event as StarkEvent,
-  SequencerProvider,
   Account,
 } from "starknet";
 import { starknetKeccak } from "starknet/dist/utils/hash";
@@ -38,7 +36,7 @@ import {
   TransactionReceipt,
 } from "@ethersproject/abstract-provider";
 import { id as keccak } from "@ethersproject/hash";
-import { abiCoder, decode, decodeEvents, decode_, encode } from "../transcode";
+import { abiCoder, decode, decodeEvents, decode_, encode, SolValue } from "../transcode";
 import { FIELD_PRIME } from "starknet/dist/constants";
 import {readFileSync} from "fs";
 import {normalizeAddress} from "../utils";
@@ -100,7 +98,6 @@ export class WarpContract extends EthersContract {
 
   constructor(
     private starknetContract: StarknetContract,
-    private starknetContractFactory: StarknetContractFactory,
     private ethersContractFactory: EthersContractFactory,
     private pathToCairoFile: string
   ) {
@@ -121,12 +118,15 @@ export class WarpContract extends EthersContract {
       readFileSync(this.getCompiledCairoFile(), "utf-8")
     );
     let eventsJson = compiledCairo?.abi?.filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (data: { [key: string]: any }) => data?.type === "event"
     );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     eventsJson = eventsJson.map((e: any) => ({
       topic: `0x${starknetKeccak(e?.name).toString(16)}`,
       ...e,
     }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     eventsJson.forEach((e: any) => {
       this.snTopicToName[e.topic] = e.name;
     });
@@ -142,6 +142,7 @@ export class WarpContract extends EthersContract {
     );
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   static getContractAddress(transaction: {
     from: string;
     nonce: BigNumberish;
@@ -158,10 +159,12 @@ export class WarpContract extends EthersContract {
     return Promise.resolve(this);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _deployed(blockTag?: BlockTag): Promise<EthersContract> {
     return Promise.resolve(this);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   fallback(overrides?: TransactionRequest): Promise<TransactionResponse> {
     throw new Error("Not implemented yet");
   }
@@ -179,46 +182,58 @@ export class WarpContract extends EthersContract {
     return this;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
   static isIndexed(value: any): value is Indexed {
     throw new Error("Not implemented yet");
   }
 
   queryFilter(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     event: EventFilter | string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     fromBlockOrBlockhash?: BlockTag | string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     toBlock?: BlockTag
   ): Promise<Array<Event>> {
     throw new Error("Not implemented yet");
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   on(event: EventFilter | string, listener: Listener): this {
     throw new Error("Not implemented yet");
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   once(event: EventFilter | string, listener: Listener): this {
     throw new Error("Not implemented yet");
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
   emit(eventName: EventFilter | string, ...args: Array<any>): boolean {
     throw new Error("Not implemented yet");
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   listenerCount(eventName?: EventFilter | string): number {
     throw new Error("Not implemented yet");
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   listeners(eventName?: EventFilter | string): Array<Listener> {
     throw new Error("Not implemented yet");
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   removeAllListeners(eventName?: EventFilter | string): this {
     throw new Error("Not implemented yet");
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   off(eventName: EventFilter | string, listener: Listener): this {
     throw new Error("Not implemented yet");
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   removeListener(eventName: EventFilter | string, listener: Listener): this {
     throw new Error("Not implemented yet");
   }
@@ -234,52 +249,41 @@ export class WarpContract extends EthersContract {
     const cairoFuncName =
       solName + "_" + this.interface.getSighash(fragment).slice(2); // Todo finish this keccak (use web3)
 
-    return async (...args: any[]) => {
-      try {
-        const calldata = encode(
-          fragment.inputs,
-          args,
-        )
+    return async (...args: SolValue[]) => {
+      const calldata = encode(
+        fragment.inputs,
+        args,
+      )
 
-        if (! (this.starknetContract.providerOrAccount instanceof Account)) throw new Error("Expect contract provider to be account");
-        const invokeResponse = await this.starknetContract.providerOrAccount.execute(
-          {
-            contractAddress: this.starknetContract.address,
-            calldata: calldata,
-            entrypoint: cairoFuncName,
-          },
-          undefined,
-          {
-            // Set maxFee to some high number for goerli
-            maxFee: process.env.STARKNET_PROVIDER_BASE_URL
-              ? undefined
-              : (2n ** 250n).toString(),
-          }
-        );
-        const abiEncodedInputs = abiCoder.encode(fragment.inputs, args)
-        const sigHash = this.ethersContractFactory.interface.getSighash(fragment);
-        const data = sigHash.concat(abiEncodedInputs.substring(2));
-        return this.toEtheresTransactionResponse(
-          invokeResponse,
-          data
-        );
-      } catch (e) {
-        if (e instanceof GatewayError) {
-          if (e.message.includes(ASSERT_ERROR)) {
-          } else {
-            throw e;
-          }
-        } else {
-          throw e;
+      if (! (this.starknetContract.providerOrAccount instanceof Account)) throw new Error("Expect contract provider to be account");
+      const invokeResponse = await this.starknetContract.providerOrAccount.execute(
+        {
+          contractAddress: this.starknetContract.address,
+          calldata: calldata,
+          entrypoint: cairoFuncName,
+        },
+        undefined,
+        {
+          // Set maxFee to some high number for goerli
+          maxFee: process.env.STARKNET_PROVIDER_BASE_URL
+            ? undefined
+            : (2n ** 250n).toString(),
         }
-      }
+      );
+      const abiEncodedInputs = abiCoder.encode(fragment.inputs, args)
+      const sigHash = this.ethersContractFactory.interface.getSighash(fragment);
+      const data = sigHash.concat(abiEncodedInputs.substring(2));
+      return this.toEtheresTransactionResponse(
+        invokeResponse,
+        data
+      );
     };
   }
+
   private buildCall(solName: string, fragment: FunctionFragment) {
     const cairoFuncName =
       solName + "_" + this.interface.getSighash(fragment).slice(2); // Todo finish this keccak (use web3)
-    // @ts-ignore
-    return async (...args: any[]) => {
+    return async (...args: SolValue[]) => {
       const calldata = encode(fragment.inputs, args);
       try {
         const output_before = await this.starknetContract.providerOrAccount.callContract(
@@ -296,12 +300,8 @@ export class WarpContract extends EthersContract {
         );
         return output;
       } catch (e) {
-        if (e instanceof GatewayError) {
-          if (e.message.includes(ASSERT_ERROR)) {
+        if (e instanceof GatewayError && e.message.includes(ASSERT_ERROR)) {
             throw new Error("Starknet reverted transaction: " + e.message);
-          } else {
-            throw e;
-          }
         } else {
           throw e;
         }
@@ -373,6 +373,7 @@ export class WarpContract extends EthersContract {
       data: data,
       value: BigNumber.from(0),
       chainId: -1,
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       wait: async (_: number | undefined) => {
         this.sequencerProvider.waitForTransaction(transaction_hash);
         const txStatus = await this.sequencerProvider.getTransactionStatus(

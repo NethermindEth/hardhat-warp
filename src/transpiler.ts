@@ -1,6 +1,4 @@
 import {exec, execSync} from 'child_process';
-import {readFileSync} from 'fs';
-
 export class Transpiler {
   constructor(private _pathToWarp: string) {}
 
@@ -24,7 +22,9 @@ export class Transpiler {
           },
       );
 
-      process.stdin!.end();
+      if (process.stdin) {
+        process.stdin.end();
+      }
     });
 
     console.log(output);
