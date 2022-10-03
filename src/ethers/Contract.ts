@@ -6,7 +6,6 @@ import {
   InvokeFunctionResponse,
   InvokeTransactionReceiptResponse,
   Event as StarkEvent,
-  SequencerProvider,
   Account,
 } from "starknet";
 import { starknetKeccak } from "starknet/dist/utils/hash";
@@ -97,6 +96,11 @@ export class WarpContract extends EthersContract {
   // ethTopic here referes to the keccak of "event_name + selector"
   // because that's the mangling that warp produces
   private ethTopicToEvent: { [key: string]: [EventFragment, string] } = {};
+
+  public ignoredTopics = new Set([
+    // Event topic for fee invocation, done by StarkNet
+    '0x99cd8bde557814842a3121e8ddfd433a539b8c9f14bf31ebf108d12e6196e9'
+  ]);
 
   constructor(
     private starknetContract: StarknetContract,
@@ -431,9 +435,12 @@ export class WarpContract extends EthersContract {
     blockHash: string,
     transactionIndex: number,
     transactionHash: string
-  ): Array<Event> {
-    return events.map((e, i) => {
+  ): Event[] {
+    return events.map((e, i): Event | null => {
       const currentTopic = e.keys[0];
+      if (this.ignoredTopics.has(currentTopic)) {
+        return null;
+      }
       const [eventFragment, selector] = this.ethTopicToEvent[
         this.snTopicToName[currentTopic]
       ];
@@ -463,6 +470,6 @@ export class WarpContract extends EthersContract {
         getTransaction: () => Promise.resolve({} as TransactionResponse),
         getTransactionReceipt: () => Promise.resolve({} as TransactionReceipt),
       };
-    });
+    }).filter((event): event is Event => event !== null);
   }
 }
