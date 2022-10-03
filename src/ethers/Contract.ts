@@ -436,11 +436,10 @@ export class WarpContract extends EthersContract {
     transactionIndex: number,
     transactionHash: string
   ): Event[] {
-    return events.map((e, i): Event | null => {
+    return events
+      .filter((e) => !this.ignoredTopics.has(e.keys[0]))
+      .map((e, i): Event => {
       const currentTopic = e.keys[0];
-      if (this.ignoredTopics.has(currentTopic)) {
-        return null;
-      }
       const [eventFragment, selector] = this.ethTopicToEvent[
         this.snTopicToName[currentTopic]
       ];
@@ -470,6 +469,6 @@ export class WarpContract extends EthersContract {
         getTransaction: () => Promise.resolve({} as TransactionResponse),
         getTransactionReceipt: () => Promise.resolve({} as TransactionReceipt),
       };
-    }).filter((event): event is Event => event !== null);
+    });
   }
 }
