@@ -80,15 +80,12 @@ export class ContractFactory {
     const inputs = encode(this.interface.deploy.inputs, args);
 
     const starknetContract = await this.starknetContractFactory.deploy(inputs);
-    console.log('deploying', this.pathToCairoFile);
-    console.log(starknetContract.deployTransactionHash);
     await starknetContract.deployed();
     const contract = new WarpContract(
       starknetContract,
       this.ethersContractFactory,
       this.pathToCairoFile,
     );
-    console.log('deployed');
     return contract;
   }
 
