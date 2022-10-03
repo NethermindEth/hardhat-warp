@@ -90,8 +90,6 @@ export class ContractFactory {
     )
 
     const starknetContract = await this.starknetContractFactory.deploy(inputs);
-    console.log("deploying", this.pathToCairoFile);
-    console.log(starknetContract.deployTransactionHash);
     await starknetContract.deployed();
     const contract = new WarpContract(
       starknetContract,
@@ -99,7 +97,6 @@ export class ContractFactory {
       this.ethersContractFactory,
       this.pathToCairoFile
     );
-    console.log("deployed");
     return contract;
   }
 
