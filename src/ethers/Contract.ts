@@ -40,10 +40,10 @@ import {
 import { id as keccak } from "@ethersproject/hash";
 import { abiCoder, decode, decodeEvents, decode_, encode } from "../transcode";
 import { FIELD_PRIME } from "starknet/dist/constants";
-import {readFileSync} from "fs";
-import {normalizeAddress} from "../utils";
-import {WarpSigner} from "./Signer";
-import {getSequencerProvder} from "../provider";
+import { readFileSync } from "fs";
+import { normalizeAddress } from "../utils";
+import { WarpSigner } from "./Signer";
+import { getSequencerProvder } from "../provider";
 
 const ASSERT_ERROR = "An ASSERT_EQ instruction failed";
 
@@ -236,12 +236,12 @@ export class WarpContract extends EthersContract {
 
     return async (...args: any[]) => {
       try {
-        const calldata = encode(
-          fragment.inputs,
-          args,
-        )
+        // abiCoder checks for correct Sol input
+        const abiEncodedInputs = abiCoder.encode(fragment.inputs, args);
+        const calldata = encode(fragment.inputs, args);
 
-        if (! (this.starknetContract.providerOrAccount instanceof Account)) throw new Error("Expect contract provider to be account");
+        if (!(this.starknetContract.providerOrAccount instanceof Account))
+          throw new Error("Expect contract provider to be account");
         const invokeResponse = await this.starknetContract.providerOrAccount.execute(
           {
             contractAddress: this.starknetContract.address,
@@ -256,13 +256,11 @@ export class WarpContract extends EthersContract {
               : (2n ** 250n).toString(),
           }
         );
-        const abiEncodedInputs = abiCoder.encode(fragment.inputs, args)
-        const sigHash = this.ethersContractFactory.interface.getSighash(fragment);
-        const data = sigHash.concat(abiEncodedInputs.substring(2));
-        return this.toEtheresTransactionResponse(
-          invokeResponse,
-          data
+        const sigHash = this.ethersContractFactory.interface.getSighash(
+          fragment
         );
+        const data = sigHash.concat(abiEncodedInputs.substring(2));
+        return this.toEtheresTransactionResponse(invokeResponse, data);
       } catch (e) {
         if (e instanceof GatewayError) {
           if (e.message.includes(ASSERT_ERROR)) {
@@ -280,6 +278,8 @@ export class WarpContract extends EthersContract {
       solName + "_" + this.interface.getSighash(fragment).slice(2); // Todo finish this keccak (use web3)
     // @ts-ignore
     return async (...args: any[]) => {
+      // abiCoder checks for correct Sol input
+      abiCoder.encode(fragment.inputs, args);
       const calldata = encode(fragment.inputs, args);
       try {
         const output_before = await this.starknetContract.providerOrAccount.callContract(

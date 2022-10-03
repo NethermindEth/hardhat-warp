@@ -47,10 +47,13 @@ function encodePrimitive(
     return encodeAsUintOrFelt(typeString, inputs, 251);
   }
   if (typeString === "bool") {
-    const val = safeNext(inputs);
-    if (typeof val === "boolean") {
-      return val ? ["1"] : ["0"];
+    const value = safeNext(inputs);
+    if (typeof value === "boolean") {
+      return value ? ["1"] : ["0"];
     }
+    throw new Error(
+      `Cannot encode ${value} as a boolean value. Expected 'true' or 'false'`
+    );
   }
   if (typeString === "fixed" || typeString === "ufixed") {
     throw new Error("Fixed types not supported by Warp");
@@ -60,23 +63,25 @@ function encodePrimitive(
     return encodeAsUintOrFelt(typeString, inputs, nbits);
   }
   if (typeString === "bytes") {
-    let value = safeNext(inputs);
+    const value = safeNext(inputs);
     if (typeof value === "string") {
       // remove 0x
-      value = value.substring(2);
-      const length = value.length / 2;
-      if (length !== Math.floor(length)) throw new Error("bytes must be even");
+      const bytes = value.substring(2);
+      if (bytes.length % 2 !== 0)
+        throw new Error("Bytes must have even length");
 
+      const length = bytes.length / 2;
       const cairoBytes: string[] = [];
-      for (let index = 0; index < value.length; index += 2) {
-        const byte = value.substring(index, index + 2);
+      for (let index = 0; index < bytes.length; index += 2) {
+        const byte = bytes.substring(index, index + 2);
         cairoBytes.push(`0x${byte}`);
       }
       return [length.toString(), cairoBytes].flat();
     } else if (isBytes(value)) {
-      const length = value.length / 2;
-      if (length % 2 !== 0) throw new Error("bytes must be even");
+      if (value.length % 2 !== 0)
+        throw new Error("Bytes must have even length");
 
+      const length = value.length / 2;
       const bytes = Array.from(value).map((byte) => byte.toString());
       return [length.toString(), ...bytes];
     }
@@ -107,12 +112,21 @@ export function encodeComplex(
     const tupleValues = value as { [key: string]: SolValue };
     const keys = new Set(Object.keys(tupleValues));
 
-    return type.components.flatMap((type) => {
+    const encoding = type.components.flatMap((type) => {
       if (!keys.has(type.name)) {
         throw new Error(`Unknown struct member: ${type.name}`);
       }
+      keys.delete(type.name);
       return encode_(type, makeIterator(tupleValues[type.name]));
     });
+    if (keys.size !== 0) {
+      throw new Error(
+        `Some struct properties where not specified: ${[...keys.values()].join(
+          ", "
+        )}`
+      );
+    }
+    return encoding;
   }
   throw new Error(`Can't encode complex type ${type}`);
 }
