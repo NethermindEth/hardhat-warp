@@ -1,12 +1,6 @@
-import {
-  Account,
-  ProviderInterface,
-  RpcProvider,
-  SequencerProvider,
-  ec,
-} from "starknet";
-import {getKeyPair} from "starknet/dist/utils/ellipticCurve";
-import {StarknetDevnetGetAccountsResponse} from "./utils";
+import { Account, ProviderInterface, RpcProvider, SequencerProvider, ec } from 'starknet';
+import { getKeyPair } from 'starknet/dist/utils/ellipticCurve';
+import { StarknetDevnetGetAccountsResponse } from './utils';
 
 export async function getStarkNetDevNetAccounts(): Promise<
   Array<StarknetDevnetGetAccountsResponse>
@@ -14,11 +8,10 @@ export async function getStarkNetDevNetAccounts(): Promise<
   const devnet_feeder_gateway_url: string =
     process.env.STARKNET_PROVIDER_BASE_URL != undefined
       ? process.env.STARKNET_PROVIDER_BASE_URL
-      : "http://127.0.0.1:5050";
-  const response = await fetch(
-    `${devnet_feeder_gateway_url}/predeployed_accounts`,
-    { method: "GET" }
-  );
+      : 'http://127.0.0.1:5050';
+  const response = await fetch(`${devnet_feeder_gateway_url}/predeployed_accounts`, {
+    method: 'GET',
+  });
   return response.json();
 }
 
@@ -31,7 +24,7 @@ export const getTestAccounts = async (provider: ProviderInterface) => {
   const testAccountA = new Account(
     provider,
     testAccountAAddress,
-    getKeyPair(testAccountAPrivateKey)
+    getKeyPair(testAccountAPrivateKey),
   );
 
   const testAccountBAddress = accounts[0].address;
@@ -39,36 +32,34 @@ export const getTestAccounts = async (provider: ProviderInterface) => {
   const testAccountB = new Account(
     provider,
     testAccountBAddress,
-    getKeyPair(testAccountBPrivateKey)
+    getKeyPair(testAccountBPrivateKey),
   );
   return [testAccountA, testAccountB];
 };
 
 // TODO use .starknet_accounts
-export async function getDefaultAccount() : Promise<Account> {
-  return (await getDevNetPreloadedAccounts(getSequencerProvder()))[0]
+export async function getDefaultAccount(): Promise<Account> {
+  return (await getDevNetPreloadedAccounts(getSequencerProvder()))[0];
 }
 
-export function getSequencerProvder() : SequencerProvider {
-  return process.env.STARKNET_PROVIDER_BASE_URL === undefined ?
-    new SequencerProvider() :
-    new SequencerProvider({baseUrl: process.env.STARKNET_PROVIDER_BASE_URL});
+export function getSequencerProvder(): SequencerProvider {
+  return process.env.STARKNET_PROVIDER_BASE_URL === undefined
+    ? new SequencerProvider()
+    : new SequencerProvider({ baseUrl: process.env.STARKNET_PROVIDER_BASE_URL });
 }
-
 
 // TODO clean this up and unify with the provider getters above
-const DEFAULT_TEST_PROVIDER_BASE_URL = "http://127.0.0.1:5050/";
+const DEFAULT_TEST_PROVIDER_BASE_URL = 'http://127.0.0.1:5050/';
 
-const BASE_URL =
-  process.env.TEST_PROVIDER_BASE_URL || DEFAULT_TEST_PROVIDER_BASE_URL;
+const BASE_URL = process.env.TEST_PROVIDER_BASE_URL || DEFAULT_TEST_PROVIDER_BASE_URL;
 const RPC_URL = process.env.TEST_RPC_URL;
 
 const IS_RPC = !!RPC_URL;
 const IS_RPC_DEVNET = Boolean(
-  RPC_URL && (RPC_URL.includes("localhost") || RPC_URL.includes("127.0.0.1"))
+  RPC_URL && (RPC_URL.includes('localhost') || RPC_URL.includes('127.0.0.1')),
 );
 const IS_SEQUENCER = !IS_RPC;
-const IS_SEQUENCER_DEVNET = !BASE_URL.includes("starknet.io");
+const IS_SEQUENCER_DEVNET = !BASE_URL.includes('starknet.io');
 export const IS_DEVNET = IS_SEQUENCER ? IS_SEQUENCER_DEVNET : IS_RPC_DEVNET;
 
 export const getTestProvider = () => {
@@ -78,9 +69,7 @@ export const getTestProvider = () => {
 
   if (IS_DEVNET) {
     // accelerate the tests when running locally
-    const originalWaitForTransaction = provider.waitForTransaction.bind(
-      provider
-    );
+    const originalWaitForTransaction = provider.waitForTransaction.bind(provider);
     provider.waitForTransaction = (txHash: string, retryInterval: number) => {
       return originalWaitForTransaction(txHash, retryInterval || 1000);
     };
@@ -91,8 +80,6 @@ export const getTestProvider = () => {
 
 // test account with fee token balance
 export const getDevNetPreloadedAccounts = async (provider: ProviderInterface) =>
-  (await getStarkNetDevNetAccounts()).map((account) => new Account(
-    provider,
-    account.address,
-    ec.getKeyPair(account.private_key)
-));
+  (await getStarkNetDevNetAccounts()).map(
+    (account) => new Account(provider, account.address, ec.getKeyPair(account.private_key)),
+  );

@@ -1,33 +1,30 @@
-import {BigNumberish} from "ethers";
-import {ParamType} from "ethers/lib/utils";
+import { BigNumberish } from 'ethers';
+import { ParamType } from 'ethers/lib/utils';
 
-export type SolValue = BigNumberish | boolean | string | {[key: string]: SolValue} | SolValue[];
+export type SolValue = BigNumberish | boolean | string | { [key: string]: SolValue } | SolValue[];
 
 export function getWidthInFeltsOf(type: ParamType): number {
-  if (type.baseType.startsWith("uint")) {
+  if (type.baseType.startsWith('uint')) {
     const width = parseInt(type.baseType.slice(4), 10);
     return width < 256 ? 1 : 2;
-  } else if (type.baseType.startsWith("int")) {
+  } else if (type.baseType.startsWith('int')) {
     const width = parseInt(type.baseType.slice(3), 10);
     return width < 256 ? 1 : 2;
-  } else if (type.baseType.startsWith("address")) {
+  } else if (type.baseType.startsWith('address')) {
     return 1;
-  } else if (type.baseType.startsWith("bool")) {
+  } else if (type.baseType.startsWith('bool')) {
     return 1;
   } else if (/byte\d*$/.test(type.baseType)) {
     const width = parseInt(type.baseType.slice(4), 10);
     return width * 8;
-  } else if (
-    type.baseType.startsWith("ufixed") ||
-    type.baseType.startsWith("fixed")
-  ) {
-    throw new Error("Fixed types not supported by Warp");
-  } else if (type.baseType.startsWith("bytes")) {
-    throw new Error("Nested dynamic types not supported in Warp");
+  } else if (type.baseType.startsWith('ufixed') || type.baseType.startsWith('fixed')) {
+    throw new Error('Fixed types not supported by Warp');
+  } else if (type.baseType.startsWith('bytes')) {
+    throw new Error('Nested dynamic types not supported in Warp');
   } else if (type.indexed) {
     // array
     if (type.arrayLength === -1) {
-      throw new Error("Nested dynamic types not supported in Warp");
+      throw new Error('Nested dynamic types not supported in Warp');
     } else {
       // static array
       return type.arrayLength * getWidthInFeltsOf(type.arrayChildren);
@@ -38,7 +35,7 @@ export function getWidthInFeltsOf(type: ParamType): number {
       return acc + getWidthInFeltsOf(ty);
     }, 0);
   }
-  throw new Error("Not Supported " + type.baseType);
+  throw new Error('Not Supported ' + type.baseType);
 }
 
 export function divmod(x: bigint, y: bigint): [bigint, bigint] {
@@ -53,7 +50,7 @@ export function isPrimitiveParam(type: ParamType): boolean {
   return (type.indexed === false || type.indexed === null) && type.components === null;
 }
 
-const uint128 = BigInt("0x100000000000000000000000000000000");
+const uint128 = BigInt('0x100000000000000000000000000000000');
 
 export function toUintOrFelt(value: bigint, nBits: number): bigint[] {
   const val = bigintToTwosComplement(BigInt(value.toString()), nBits);
@@ -73,12 +70,8 @@ export function bigintToTwosComplement(val: bigint, width: number): bigint {
     // Negative values need to be converted to two's complement
     // This is done by flipping the bits, adding one, and truncating
     const absBits = (-val).toString(2);
-    const allBits = `${"0".repeat(
-      Math.max(width - absBits.length, 0)
-    )}${absBits}`;
-    const inverted = `0b${[...allBits]
-      .map((c) => (c === "0" ? "1" : "0"))
-      .join("")}`;
+    const allBits = `${'0'.repeat(Math.max(width - absBits.length, 0))}${absBits}`;
+    const inverted = `0b${[...allBits].map((c) => (c === '0' ? '1' : '0')).join('')}`;
     const twosComplement = (BigInt(inverted) + 1n).toString(2).slice(-width);
     return BigInt(`0b${twosComplement}`);
   }
@@ -97,10 +90,10 @@ export function twosComplementToBigInt(val: bigint, width: number): bigint {
   }
 }
 
-export function safeNext<T>(iter : IterableIterator<T>): T {
+export function safeNext<T>(iter: IterableIterator<T>): T {
   const next = iter.next();
   if (!next.done) {
     return next.value;
   }
-  throw new Error("Unexpected end of input in Solidity to Cairo encode");
+  throw new Error('Unexpected end of input in Solidity to Cairo encode');
 }
