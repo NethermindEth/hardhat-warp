@@ -15,7 +15,6 @@ import { readFileSync } from 'fs';
 import { WarpSigner } from './Signer';
 import { getContract } from '../utils';
 import { getDefaultAccount } from '../provider';
-const declaredContracts: Set<string> = new Set();
 
 export class ContractFactory {
   readonly interface: Interface;
@@ -62,29 +61,20 @@ export class ContractFactory {
     console.debug(`[ Deploy ] ${this.pathToCairoFile}`);
     console.group();
     await Promise.all(
-      this.getContractsToDeclare()
-        .filter((c) => {
-          if (declaredContracts.has(c)) {
-            console.debug(`[ Already Declared ] ${c}`);
-            return false;
-          }
-          declaredContracts.add(c);
-          return true;
-        })
-        .map(async (name) => {
-          const factory = await getStarknetContractFactory(name);
+      this.getContractsToDeclare().map(async (name) => {
+        const factory = await getStarknetContractFactory(name);
 
-          console.debug(`[ Declare ] ${name}`);
-          const declareResponse =
-            await this.starknetContractFactory.providerOrAccount.declareContract({
-              contract: factory.compiledContract,
-            });
-          console.debug(`    [ hash ] ${declareResponse.class_hash}`);
+        console.debug(`[ Declare ] ${name}`);
+        const declareResponse =
+          await this.starknetContractFactory.providerOrAccount.declareContract({
+            contract: factory.compiledContract,
+          });
+        console.debug(`    [ hash ] ${declareResponse.class_hash}`);
 
-          return this.starknetContractFactory.providerOrAccount.waitForTransaction(
-            declareResponse.transaction_hash,
-          );
-        }),
+        return this.starknetContractFactory.providerOrAccount.waitForTransaction(
+          declareResponse.transaction_hash,
+        );
+      }),
     );
 
     const inputs = encode(this.interface.deploy.inputs, args);
