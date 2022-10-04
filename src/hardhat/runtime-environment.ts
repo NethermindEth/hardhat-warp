@@ -7,6 +7,16 @@ import { ContractFactory, getStarknetContractFactory } from '../ethers/ContractF
 import { getContract } from '../utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/src/signers';
 
+type Fixture<T> = (signers: WarpSigner[], provider: any) => Promise<T>;
+
+interface Snapshot<T> {
+  fixture: Fixture<T>;
+  data: T;
+  id: number;
+  provider: any;
+  signers: WarpSigner[];
+}
+
 extendEnvironment((hre) => {
   // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
   const getContractFactory = hre.ethers.getContractFactory;
@@ -84,4 +94,52 @@ extendEnvironment((hre) => {
       throw new Error(`Address is not a valid starknet address ${address}`);
     }
   };
+
+  // @ts-ignore hre doesn't contain the waffle type information which is set by hardhat
+  hre.waffle.createFixtureLoader = (
+    signers: WarpSigner[],
+    // eslint-disable-next-line no-unused-vars
+    provider: any,
+  ) => {
+    if (provider) throw new Error('Fixture providers not supported');
+    const snapshots: Array<Snapshot<any>> = [];
+
+    return async function load<T>(fixture: Fixture<T>): Promise<T> {
+      console.log(process.env.STARKNET_PROVIDER_BASE_URL);
+      if (process.env.STARKNET_PROVIDER_BASE_URL === undefined)
+        throw new Error('Fixtures only supported on local devnet');
+      const snapshot = snapshots.find((p) => p.fixture === fixture);
+      if (snapshot !== undefined) {
+        await fetch(new URL('load', process.env.STARKNET_PROVIDER_BASE_URL), {
+          method: 'POST',
+          body: JSON.stringify({
+            path: `.${snapshot.id}.snapshot`,
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        return snapshot.data;
+      } else {
+        const data = await fixture(signers, provider);
+        const id = snapshots.length;
+        await fetch(new URL('dump', process.env.STARKNET_PROVIDER_BASE_URL), {
+          method: 'POST',
+          body: JSON.stringify({
+            path: `.${id}.snapshot`,
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        snapshots.push({ fixture, data, id, provider, signers });
+        return data;
+      }
+    };
+  };
+
+  // @ts-ignore hre doesn't contain the waffle type information which is set by hardhat
+  hre.waffle.loadFixture = hre.waffle.createFixtureLoader();
 });
