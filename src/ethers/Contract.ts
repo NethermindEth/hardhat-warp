@@ -331,7 +331,6 @@ export class WarpContract extends EthersContract {
     const txBlock = await this.sequencerProvider.getBlock(txStatus.block_hash);
     const latestBlock = await this.sequencerProvider.getBlock();
 
-    console.log('To ethers conversion happened');
     return {
       hash: txResponse.transaction_hash as string,
       blockNumber: txBlock.block_number,
@@ -361,7 +360,6 @@ export class WarpContract extends EthersContract {
           transaction_hash,
         );
 
-        console.log('Encode is done');
         return Promise.resolve({
           to: normalizeAddress(txTrace.function_invocation.contract_address),
           from: txTrace.function_invocation.caller_address,
@@ -403,7 +401,6 @@ export class WarpContract extends EthersContract {
 
         const results = decodeEvents(eventFragment.inputs, e.data);
         const resultsArray = decode_(eventFragment.inputs, e.data.values());
-        console.log('Going to encode');
         return {
           blockNumber,
           blockHash,
