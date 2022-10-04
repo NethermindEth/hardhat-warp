@@ -15,7 +15,6 @@ import { readFileSync } from 'fs';
 import { WarpSigner } from './Signer';
 import { getContract } from '../utils';
 import { getDefaultAccount } from '../provider';
-const declaredContracts: Set<string> = new Set();
 
 export class ContractFactory {
   readonly interface: Interface;
@@ -60,26 +59,18 @@ export class ContractFactory {
 
   async deploy(...args: Array<SolValue>): Promise<EthersContract> {
     await Promise.all(
-      this.getContractsToDeclare()
-        .filter((c) => {
-          if (declaredContracts.has(c)) {
-            return false;
-          }
-          declaredContracts.add(c);
-          return true;
-        })
-        .map(async (name) => {
-          const factory = await getStarknetContractFactory(name);
+      this.getContractsToDeclare().map(async (name) => {
+        const factory = await getStarknetContractFactory(name);
 
-          const declareResponse =
-            await this.starknetContractFactory.providerOrAccount.declareContract({
-              contract: factory.compiledContract,
-            });
+        const declareResponse =
+          await this.starknetContractFactory.providerOrAccount.declareContract({
+            contract: factory.compiledContract,
+          });
 
-          return this.starknetContractFactory.providerOrAccount.waitForTransaction(
-            declareResponse.transaction_hash,
-          );
-        }),
+        return this.starknetContractFactory.providerOrAccount.waitForTransaction(
+          declareResponse.transaction_hash,
+        );
+      }),
     );
 
     const inputs = encode(this.interface.deploy.inputs, args);
