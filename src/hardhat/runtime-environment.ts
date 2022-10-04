@@ -122,7 +122,6 @@ extendEnvironment((hre) => {
 
         return snapshot.data;
       } else {
-        console.log('Creating snapshot');
         const data = await fixture(signers, provider);
         const id = snapshots.length;
         fetch(new URL('dump', process.env.STARKNET_PROVIDER_BASE_URL), {
