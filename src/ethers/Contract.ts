@@ -238,6 +238,8 @@ export class WarpContract extends EthersContract {
     const cairoFuncName = solName + '_' + this.interface.getSighash(fragment).slice(2); // Todo finish this keccak (use web3)
 
     return async (...args: SolValue[]) => {
+      console.debug(`[ INVOKE ] ${this.pathToCairoFile}:${cairoFuncName}`);
+      console.group();
       const calldata = encode(fragment.inputs, args);
 
       if (!(this.starknetContract.providerOrAccount instanceof Account))
@@ -265,6 +267,8 @@ export class WarpContract extends EthersContract {
   private buildCall(solName: string, fragment: FunctionFragment) {
     const cairoFuncName = solName + '_' + this.interface.getSighash(fragment).slice(2); // Todo finish this keccak (use web3)
     return async (...args: SolValue[]) => {
+      console.debug(`[ CALL ] ${this.pathToCairoFile}:${cairoFuncName}`);
+      console.group();
       // abiCoder checks for correct Sol input
       abiCoder.encode(fragment.inputs, args);
       const calldata = encode(fragment.inputs, args);
@@ -278,6 +282,8 @@ export class WarpContract extends EthersContract {
           'pending',
         );
         const output = this.parseResponse(fragment.outputs, output_before.result);
+        console.debug(`[ OUTPUT ] ${output}`);
+        console.groupEnd();
         return output;
       } catch (e) {
         if (e instanceof GatewayError && e.message.includes(ASSERT_ERROR)) {
@@ -315,15 +321,18 @@ export class WarpContract extends EthersContract {
     { transaction_hash }: InvokeFunctionResponse,
     data: string,
   ): Promise<ContractTransaction> {
+    console.debug(`[ HASH ] ${transaction_hash}`);
     const txStatus = await this.sequencerProvider.getTransactionStatus(transaction_hash);
     const txTrace = await this.sequencerProvider.getTransactionTrace(transaction_hash);
 
     if (txStatus.tx_status === 'NOT_RECEIVED') {
+      console.debug(`[ NOT_RECEIVED ]`);
       throw new Error('Failed transactions not supported yet');
     }
     const txResponse = await this.sequencerProvider.getTransaction(transaction_hash);
     // Handle failure case
     if (txStatus.tx_status === 'REJECTED') {
+      console.debug(`[ REJECTED ] ${txStatus.tx_failure_reason}`);
       throw new Error(
         'Starknet reverted transaction: ' + (JSON.stringify(txStatus.tx_failure_reason) || ''),
       );
@@ -331,6 +340,7 @@ export class WarpContract extends EthersContract {
     const txBlock = await this.sequencerProvider.getBlock(txStatus.block_hash);
     const latestBlock = await this.sequencerProvider.getBlock();
 
+    console.groupEnd();
     return {
       hash: txResponse.transaction_hash as string,
       blockNumber: txBlock.block_number,
@@ -344,6 +354,8 @@ export class WarpContract extends EthersContract {
       chainId: -1,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       wait: async (_: number | undefined) => {
+        console.debug(`[ wait for invoke ] ${this.pathToCairoFile}:${transaction_hash}`);
+        console.group();
         this.sequencerProvider.waitForTransaction(transaction_hash);
         const txStatus = await this.sequencerProvider.getTransactionStatus(transaction_hash);
         const txBlock = await this.sequencerProvider.getBlock(txStatus.block_hash);
@@ -360,6 +372,8 @@ export class WarpContract extends EthersContract {
           transaction_hash,
         );
 
+        console.debug(`[ Result ] ${txTrace.function_invocation.result}`);
+        console.groupEnd();
         return Promise.resolve({
           to: normalizeAddress(txTrace.function_invocation.contract_address),
           from: txTrace.function_invocation.caller_address,

@@ -59,10 +59,13 @@ export class ContractFactory {
   }
 
   async deploy(...args: Array<SolValue>): Promise<EthersContract> {
+    console.debug(`[ Deploy ] ${this.pathToCairoFile}`);
+    console.group();
     await Promise.all(
       this.getContractsToDeclare()
         .filter((c) => {
           if (declaredContracts.has(c)) {
+            console.debug(`[ Already Declared ] ${c}`);
             return false;
           }
           declaredContracts.add(c);
@@ -71,10 +74,12 @@ export class ContractFactory {
         .map(async (name) => {
           const factory = await getStarknetContractFactory(name);
 
+          console.debug(`[ Declare ] ${name}`);
           const declareResponse =
             await this.starknetContractFactory.providerOrAccount.declareContract({
               contract: factory.compiledContract,
             });
+          console.debug(`    [ hash ] ${declareResponse.class_hash}`);
 
           return this.starknetContractFactory.providerOrAccount.waitForTransaction(
             declareResponse.transaction_hash,
@@ -86,6 +91,8 @@ export class ContractFactory {
 
     const starknetContract = await this.starknetContractFactory.deploy(inputs);
     await starknetContract.deployed();
+    console.debug(`[ Address ] ${starknetContract.address}`);
+    console.groupEnd();
     const contract = new WarpContract(
       starknetContract,
       this.ethersContractFactory,

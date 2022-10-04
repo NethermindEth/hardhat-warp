@@ -399,6 +399,11 @@
   resolved "https://registry.yarnpkg.com/@humanwhocodes/object-schema/-/object-schema-1.2.1.tgz#b520529ec21d8e5945a1851dfd1c32e94e39ff45"
   integrity sha512-ZnQMnLV4e7hDlUvw8H+U8ASL02SS2Gn6+9Ac3wGGLIe7+je2AeAOxPY+izIPJDfFDb7eDjev0Us8MO1iFRN8hA==
 
+"@lilywonhalf/pretty-logger@^2.0.2":
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/@lilywonhalf/pretty-logger/-/pretty-logger-2.0.2.tgz#9a8cddf4951156b820bb0799317d7ff896154978"
+  integrity sha512-C8dTdxBHDPj1+Hzt2M3CJHds1Q7Mx4Gpe0SHG0aJSthCUYGl/MsMXmUR4u3bQiRWOlNIIQcLtGYZKXZl/7XH3Q==
+
 "@metamask/eth-sig-util@^4.0.0":
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/@metamask/eth-sig-util/-/eth-sig-util-4.0.1.tgz#3ad61f6ea9ad73ba5b19db780d40d9aae5157088"

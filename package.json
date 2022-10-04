@@ -56,5 +56,8 @@
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": "eslint --fix"
+  },
+  "dependencies": {
+    "@lilywonhalf/pretty-logger": "^2.0.2"
   }
 }
