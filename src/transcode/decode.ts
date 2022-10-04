@@ -64,7 +64,7 @@ function decodePrimitive(
       : decodeFixedBytes(outputs, parseInt(typeString.slice(5)));
   }
   // Todo make pretty
-  throw new Error("Can't decode");
+  throw new Error(`Can't decode type ${typeString}`);
 }
 
 function readFelt(outputs: IterableIterator<string>): bigint {
@@ -107,12 +107,12 @@ function decodeFixedBytes(outputs: IterableIterator<string>, length: number): Bi
 }
 
 export function decodeComplex(type: ParamType, outputs: IterableIterator<string>) {
-  if (type.indexed) {
+  if (type.arrayLength) {
     // array type
     const length = type.arrayLength === -1 ? readFelt(outputs) : type.arrayLength;
     const result: Result = [];
     for (let i = 0; i < length; ++i) {
-      result.push(decode_([type.arrayChildren], outputs));
+      result.push(decode_([type.arrayChildren], outputs)[0]);
     }
     return result;
   } else if (type.components !== null) {
@@ -125,6 +125,7 @@ export function decodeComplex(type: ParamType, outputs: IterableIterator<string>
 
     return { ...namedMembers, ...indexedMembers } as Result;
   }
+  throw Error(`Complex type not supported ${type.type}`);
 }
 
 export function getWidthOf(type: ParamType): number {

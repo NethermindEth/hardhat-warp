@@ -47,7 +47,7 @@ export function divmod(x: bigint, y: bigint): [bigint, bigint] {
 export function isPrimitiveParam(type: ParamType): boolean {
   // because why use types in a sensisble manner?
   // indexed can be false or null for primitive types
-  return (type.indexed === false || type.indexed === null) && type.components === null;
+  return type.arrayLength === null && type.components === null;
 }
 
 const uint128 = BigInt('0x100000000000000000000000000000000');
