@@ -71,9 +71,14 @@ export class ContractFactory {
         .map(async (name) => {
           const factory = await getStarknetContractFactory(name);
 
-          this.starknetContractFactory.providerOrAccount.declareContract({
-            contract: factory.compiledContract,
-          });
+          const declareResponse =
+            await this.starknetContractFactory.providerOrAccount.declareContract({
+              contract: factory.compiledContract,
+            });
+
+          return this.starknetContractFactory.providerOrAccount.waitForTransaction(
+            declareResponse.transaction_hash,
+          );
         }),
     );
 

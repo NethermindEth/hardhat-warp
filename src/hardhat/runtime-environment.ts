@@ -12,10 +12,7 @@ extendEnvironment((hre) => {
   const getContractFactory = hre.ethers.getContractFactory;
 
   // @ts-ignore we don't support some of the overloads of getContractFactory
-  hre.ethers.getContractFactory = async (
-    name: string,
-    signerOrOptions?: ethers.Signer | FactoryOptions,
-  ) => {
+  hre.ethers.getContractFactory = async (name: string, signerOrOptions?: ethers.Signer) => {
     if (signerOrOptions === undefined) {
       signerOrOptions = new WarpSigner(await getDefaultAccount());
     } else if (signerOrOptions instanceof ethers.Signer) {
