@@ -105,7 +105,6 @@ extendEnvironment((hre) => {
     const snapshots: Array<Snapshot<any>> = [];
 
     return async function load<T>(fixture: Fixture<T>): Promise<T> {
-      console.log(process.env.STARKNET_PROVIDER_BASE_URL);
       if (process.env.STARKNET_PROVIDER_BASE_URL === undefined)
         throw new Error('Fixtures only supported on local devnet');
       const snapshot = snapshots.find((p) => p.fixture === fixture);
