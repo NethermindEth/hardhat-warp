@@ -39,10 +39,11 @@ import {
 import { id as keccak } from "@ethersproject/hash";
 import { abiCoder, decode, decodeEvents, decode_, encode } from "../transcode";
 import { FIELD_PRIME } from "starknet/dist/constants";
-import { readFileSync } from "fs";
+import { appendFileSync, readFileSync, writeFileSync } from "fs";
 import { normalizeAddress } from "../utils";
 import { WarpSigner } from "./Signer";
 import { getSequencerProvder } from "../provider";
+import {GetTransactionTraceResponse} from "starknet/dist/types/api";
 
 const ASSERT_ERROR = "An ASSERT_EQ instruction failed";
 
@@ -264,16 +265,9 @@ export class WarpContract extends EthersContract {
           fragment
         );
         const data = sigHash.concat(abiEncodedInputs.substring(2));
-        return this.toEtheresTransactionResponse(invokeResponse, data);
+        return this.toEtheresTransactionResponse(invokeResponse, data, solName);
       } catch (e) {
-        if (e instanceof GatewayError) {
-          if (e.message.includes(ASSERT_ERROR)) {
-          } else {
-            throw e;
-          }
-        } else {
-          throw e;
-        }
+        throw e;
       }
     };
   }
@@ -294,6 +288,7 @@ export class WarpContract extends EthersContract {
           },
           "pending"
         );
+        console.log({output_before});
         const output = this.parseResponse(
           fragment.outputs,
           output_before.result
@@ -338,9 +333,26 @@ export class WarpContract extends EthersContract {
     Object.entries(this.interface.functions).forEach(this.wrap.bind(this));
   }
 
+
+  public benchmark(functionName: string, txTrace: GetTransactionTraceResponse){
+        let benchmarkJSON = {};
+        try {
+        benchmarkJSON = JSON.parse(readFileSync("benchmark.json", "utf-8") || "{}");
+        } catch {
+          benchmarkJSON = {}
+        }
+        console.log
+        //@ts-ignore
+        benchmarkJSON[this.pathToCairoFile] = (benchmarkJSON[this.pathToCairoFile] || []).concat([{
+            [functionName]: txTrace.function_invocation.execution_resources
+        }])
+        writeFileSync("benchmark.json", JSON.stringify(benchmarkJSON, null, 2));
+  }
+
   private async toEtheresTransactionResponse(
     { transaction_hash }: InvokeFunctionResponse,
-    data: string
+    data: string,
+    functionName: string,
   ): Promise<ContractTransaction> {
     const txStatus = await this.sequencerProvider.getTransactionStatus(
       transaction_hash
@@ -364,7 +376,7 @@ export class WarpContract extends EthersContract {
     }
     const txBlock = await this.sequencerProvider.getBlock(txStatus.block_hash);
     const latestBlock = await this.sequencerProvider.getBlock();
-
+    this.benchmark(functionName, txTrace);
     console.log("To ethers conversion happened");
     return {
       hash: txResponse.transaction_hash as string,
@@ -400,7 +412,6 @@ export class WarpContract extends EthersContract {
           transaction_hash
         );
 
-        console.log("Encode is done");
         return Promise.resolve({
           to: normalizeAddress(txTrace.function_invocation.contract_address),
           from: txTrace.function_invocation.caller_address,

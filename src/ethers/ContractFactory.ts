@@ -11,10 +11,11 @@ import { TransactionRequest } from "@ethersproject/abstract-provider";
 import { ContractInterface } from "@ethersproject/contracts";
 import { WarpContract } from "./Contract";
 import { encode } from "../transcode";
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import { WarpSigner } from "./Signer";
 import {getContract} from "../utils";
 import {getDefaultAccount, getSequencerProvder} from "../provider";
+import {GetTransactionTraceResponse} from "starknet/dist/types/api";
 const declaredContracts: Set<string> = new Set();
 
 export class ContractFactory {
@@ -22,6 +23,7 @@ export class ContractFactory {
   readonly bytecode: string;
   readonly signer: Signer;
   pathToCairoFile: string;
+  sequencerProvider = getSequencerProvder();
 
   constructor(
     private starknetContractFactory: StarknetContractFactory,
@@ -52,6 +54,21 @@ export class ContractFactory {
     });
   }
 
+  public benchmark(functionName: string, txTrace: GetTransactionTraceResponse){
+        let benchmarkJSON = {};
+        try {
+        benchmarkJSON = JSON.parse(readFileSync("benchmark.json", "utf-8") || "{}");
+        } catch {
+          benchmarkJSON = {}
+        }
+        console.log
+        //@ts-ignore
+        benchmarkJSON[this.pathToCairoFile] = (benchmarkJSON[this.pathToCairoFile] || []).concat([{
+            [functionName]: txTrace.function_invocation.execution_resources
+        }])
+        writeFileSync("benchmark.json", JSON.stringify(benchmarkJSON, null, 2));
+  }
+
   getContractsToDeclare() {
     const declareRegex = /\/\/\s@declare\s(.*)/;
     const cairoFile = readFileSync(this.pathToCairoFile, "utf-8");
@@ -79,9 +96,12 @@ export class ContractFactory {
       .map(async (name) =>{
         const factory = await getStarknetContractFactory(name)
 
-        this.starknetContractFactory.providerOrAccount.declareContract({
+        const declareResponse = await this.starknetContractFactory.providerOrAccount.declareContract({
           contract: factory.compiledContract,
-      })}))
+      })
+
+        return this.starknetContractFactory.providerOrAccount.waitForTransaction(declareResponse.transaction_hash);
+      }))
     ;
 
     const inputs = encode(
@@ -93,6 +113,10 @@ export class ContractFactory {
     console.log("deploying", this.pathToCairoFile);
     console.log(starknetContract.deployTransactionHash);
     await starknetContract.deployed();
+
+    // const txTrace = await this.sequencerProvider.getTransactionTrace(starknetContract.deployTransactionHash as string);
+    // this.benchmark("constructor", txTrace);
+
     const contract = new WarpContract(
       starknetContract,
       this.starknetContractFactory,

@@ -11,38 +11,19 @@ import {StarknetDevnetGetAccountsResponse} from "./utils";
 export async function getStarkNetDevNetAccounts(): Promise<
   Array<StarknetDevnetGetAccountsResponse>
 > {
-  const devnet_feeder_gateway_url: string =
-    process.env.STARKNET_PROVIDER_BASE_URL != undefined
-      ? process.env.STARKNET_PROVIDER_BASE_URL
-      : "http://127.0.0.1:5050";
+  const devnetBaseURL = process.env.STARKNET_PROVIDER_BASE_URL ||  "http://127.0.0.1:5050";
   const response = await fetch(
-    `${devnet_feeder_gateway_url}/predeployed_accounts`,
+    `${devnetBaseURL}/predeployed_accounts`,
     { method: "GET" }
   );
   return response.json();
 }
 
-// test account with fee token balance
-export const getTestAccounts = async (provider: ProviderInterface) => {
-  const accounts = await getStarkNetDevNetAccounts();
-
-  const testAccountAAddress = accounts[0].address;
-  const testAccountAPrivateKey = accounts[0].private_key;
-  const testAccountA = new Account(
-    provider,
-    testAccountAAddress,
-    getKeyPair(testAccountAPrivateKey)
-  );
-
-  const testAccountBAddress = accounts[0].address;
-  const testAccountBPrivateKey = accounts[0].private_key;
-  const testAccountB = new Account(
-    provider,
-    testAccountBAddress,
-    getKeyPair(testAccountBPrivateKey)
-  );
-  return [testAccountA, testAccountB];
-};
+export async function restartDevnet(): Promise<boolean> {
+  const devnetBaseURL = process.env.STARKNET_PROVIDER_BASE_URL ||  "http://127.0.0.1:5050";
+  const response = await fetch(`${devnetBaseURL}/restart`, { method: "POST" });
+  return response.status === 200;
+}
 
 // TODO use .starknet_accounts
 export async function getDefaultAccount() : Promise<Account> {
@@ -50,11 +31,21 @@ export async function getDefaultAccount() : Promise<Account> {
 }
 
 export function getSequencerProvder() : SequencerProvider {
-  return process.env.STARKNET_PROVIDER_BASE_URL === undefined ?
+  const provider = process.env.STARKNET_PROVIDER_BASE_URL === undefined ?
     new SequencerProvider() :
     new SequencerProvider({baseUrl: process.env.STARKNET_PROVIDER_BASE_URL});
-}
 
+  // if (IS_SEQUENCER_DEVNET) {
+  //   // accelerate the tests when running locally
+  //   const originalWaitForTransaction = provider.waitForTransaction.bind(
+  //     provider
+  //   );
+  //   provider.waitForTransaction = (txHash: string, retryInterval: any) => {
+  //     return originalWaitForTransaction(txHash, retryInterval || 1000);
+  //   };
+  // }
+  return provider;
+}
 
 // TODO clean this up and unify with the provider getters above
 const DEFAULT_TEST_PROVIDER_BASE_URL = "http://127.0.0.1:5050/";
@@ -76,15 +67,15 @@ export const getTestProvider = () => {
     ? new RpcProvider({ nodeUrl: RPC_URL })
     : new SequencerProvider({ baseUrl: BASE_URL });
 
-  if (IS_DEVNET) {
-    // accelerate the tests when running locally
-    const originalWaitForTransaction = provider.waitForTransaction.bind(
-      provider
-    );
-    provider.waitForTransaction = (txHash: string, retryInterval: any) => {
-      return originalWaitForTransaction(txHash, retryInterval || 1000);
-    };
-  }
+  // if (IS_DEVNET) {
+  //   // accelerate the tests when running locally
+  //   const originalWaitForTransaction = provider.waitForTransaction.bind(
+  //     provider
+  //   );
+  //   provider.waitForTransaction = (txHash: string, retryInterval: any) => {
+  //     return originalWaitForTransaction(txHash, retryInterval || 1000);
+  //   };
+  // }
 
   return provider;
 };
