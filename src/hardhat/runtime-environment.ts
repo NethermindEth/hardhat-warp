@@ -110,7 +110,7 @@ extendEnvironment((hre) => {
         throw new Error('Fixtures only supported on local devnet');
       const snapshot = snapshots.find((p) => p.fixture === fixture);
       if (snapshot !== undefined) {
-        fetch(new URL('load', process.env.STARKNET_PROVIDER_BASE_URL), {
+        await fetch(new URL('load', process.env.STARKNET_PROVIDER_BASE_URL), {
           method: 'POST',
           body: JSON.stringify({
             path: `.${snapshot.id}.snapshot`,
@@ -124,7 +124,7 @@ extendEnvironment((hre) => {
       } else {
         const data = await fixture(signers, provider);
         const id = snapshots.length;
-        fetch(new URL('dump', process.env.STARKNET_PROVIDER_BASE_URL), {
+        await fetch(new URL('dump', process.env.STARKNET_PROVIDER_BASE_URL), {
           method: 'POST',
           body: JSON.stringify({
             path: `.${id}.snapshot`,
