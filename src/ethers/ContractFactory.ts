@@ -13,7 +13,7 @@ import { WarpContract } from './Contract';
 import { encode, SolValue } from '../transcode';
 import { readFileSync } from 'fs';
 import { WarpSigner } from './Signer';
-import { getContract } from '../utils';
+import { getContract, getContractsToDeclare } from '../utils';
 import { getDefaultAccount, getSequencerProvider } from '../provider';
 
 export class ContractFactory {
@@ -43,24 +43,9 @@ export class ContractFactory {
     return this.ethersContractFactory.getDeployTransaction(...args);
   }
 
-  getContractsToDeclare() {
-    const declareRegex = /\/\/\s@declare\s(.*)/;
-    const cairoFile = readFileSync(this.pathToCairoFile, 'utf-8');
-    const lines = cairoFile.split('\n');
-
-    const declares = lines
-      .map((l) => {
-        const ma = l.match(declareRegex);
-        return ma ? ma[1] : null;
-      })
-      .filter((d): d is string => !!d);
-
-    return declares.map((v) => v.split('__').slice(-1)[0].split('.')[0]);
-  }
-
   async deploy(...args: Array<SolValue>): Promise<EthersContract> {
     await Promise.all(
-      this.getContractsToDeclare().map(async (name) => {
+      Object.keys(getContractsToDeclare(this.pathToCairoFile)).map(async (name) => {
         const factory = await getStarknetContractFactory(name);
 
         const declareResponse =

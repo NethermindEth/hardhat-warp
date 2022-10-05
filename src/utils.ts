@@ -5,7 +5,7 @@ import { HashInfo } from './Hash';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { exec } from 'child_process';
+import { exec, execSync } from 'child_process';
 
 export class WarpPluginError extends NomicLabsHardhatPluginError {
   constructor(message: string, parent?: Error, shouldBeReported?: boolean) {
@@ -167,4 +167,38 @@ export async function getContractNames(inputPath: string) {
     })
     .filter((val) => val !== '');
   return contracts;
+}
+
+export function calculateStarkNetAddress(
+  salt: string,
+  classHash: string,
+  constructorCalldata: string,
+  deployAddress: string,
+): string {
+  const WARP_VENV_PREFIX = path.resolve(
+    __dirname,
+    '..',
+    'node_modules',
+    '@nethermindeth',
+    'warp',
+    'warp_venv',
+    'bin',
+  );
+
+  const PATH_PREFIX = `PATH=${WARP_VENV_PREFIX}:$PATH`;
+  const SCRIPT_PATH = path.resolve(__dirname, '..', 'script', 'calculate_address.py');
+
+  const output = execSync(
+    `${PATH_PREFIX} python ${SCRIPT_PATH} ${salt} ${classHash} ${constructorCalldata} ${deployAddress}`,
+  )
+    .toString('utf-8')
+    .trim();
+  return output;
+}
+
+export function getContractsToDeclare(path: string): { [name: string]: string } {
+  const declareRegex = /\/\/\s@declare\s.*__WC__(.*)\.cairo\s*\nconst\s.*\s=\s(.*);/g;
+  const cairoFile = fs.readFileSync(path, 'utf-8');
+  const matches = cairoFile.matchAll(declareRegex);
+  return Object.fromEntries([...matches].map((match) => [match[1], match[2]]));
 }
