@@ -36,7 +36,7 @@ import { FIELD_PRIME } from 'starknet/dist/constants';
 import { readFileSync } from 'fs';
 import { normalizeAddress } from '../utils';
 import { WarpSigner } from './Signer';
-import { getSequencerProvder } from '../provider';
+import { getSequencerProvider } from '../provider';
 
 const ASSERT_ERROR = 'An ASSERT_EQ instruction failed';
 
@@ -84,7 +84,7 @@ export class WarpContract extends EthersContract {
   // address if an ENS name was used in the constructor
   readonly resolvedAddress: Promise<string>;
 
-  private sequencerProvider = getSequencerProvder();
+  private sequencerProvider = getSequencerProvider();
 
   snTopicToName: { [key: string]: string } = {};
   // ethTopic here referes to the keccak of "event_name + selector"

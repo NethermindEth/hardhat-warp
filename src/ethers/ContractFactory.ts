@@ -1,4 +1,4 @@
-import { ContractFactory as StarknetContractFactory, json } from 'starknet';
+import { Account, Contract, ContractFactory as StarknetContractFactory, json } from 'starknet';
 import {
   BigNumber,
   BytesLike,
@@ -14,13 +14,14 @@ import { encode, SolValue } from '../transcode';
 import { readFileSync } from 'fs';
 import { WarpSigner } from './Signer';
 import { getContract } from '../utils';
-import { getDefaultAccount } from '../provider';
+import { getDefaultAccount, getSequencerProvider } from '../provider';
 
 export class ContractFactory {
   readonly interface: Interface;
   readonly bytecode: string;
   readonly signer: Signer;
   pathToCairoFile: string;
+  private sequencerProvider = getSequencerProvider();
 
   constructor(
     private starknetContractFactory: StarknetContractFactory,
@@ -73,10 +74,42 @@ export class ContractFactory {
       }),
     );
 
+    // Declare this contract
+    const declareResponse = await this.starknetContractFactory.providerOrAccount.declareContract({
+      contract: this.starknetContractFactory.compiledContract,
+    });
+    await this.starknetContractFactory.providerOrAccount.waitForTransaction(
+      declareResponse.transaction_hash,
+    );
+
     const inputs = encode(this.interface.deploy.inputs, args);
 
-    const starknetContract = await this.starknetContractFactory.deploy(inputs);
-    await starknetContract.deployed();
+    const deployInputs = [
+      declareResponse.class_hash,
+      // using random salt, so that that the computed address is different each
+      // time and starknet-devnet doesn't complain
+      Math.floor(Math.random() * 1000000).toString(),
+      inputs.length.toString(),
+      ...inputs,
+      '0',
+    ];
+    if (!(this.starknetContractFactory.providerOrAccount instanceof Account))
+      throw new Error('Expect contract provider to be account');
+    const { transaction_hash: deployTxHash } =
+      await this.starknetContractFactory.providerOrAccount.execute({
+        contractAddress: this.starknetContractFactory.providerOrAccount.address,
+        calldata: deployInputs,
+        entrypoint: 'deploy_contract',
+      });
+    await this.starknetContractFactory.providerOrAccount.waitForTransaction(deployTxHash);
+
+    const deployAddress = (await this.sequencerProvider.getTransactionTrace(deployTxHash))
+      .function_invocation.result[0];
+    const starknetContract = new Contract(
+      this.starknetContractFactory.abi,
+      deployAddress,
+      this.starknetContractFactory.providerOrAccount,
+    );
     const contract = new WarpContract(
       starknetContract,
       this.ethersContractFactory,

@@ -39,10 +39,13 @@ export const getTestAccounts = async (provider: ProviderInterface) => {
 
 // TODO use .starknet_accounts
 export async function getDefaultAccount(): Promise<Account> {
-  return (await getDevNetPreloadedAccounts(getSequencerProvder()))[0];
+  return (await getDevNetPreloadedAccounts(getSequencerProvider()))[0];
 }
 
-export function getSequencerProvder(): SequencerProvider {
+export function getSequencerProvider(): SequencerProvider {
+  if (process.env.STARKNET_PROVIDER_BASE_URL === undefined) {
+    console.warn(`Using sequencer for alpha-goerli.`);
+  }
   return process.env.STARKNET_PROVIDER_BASE_URL === undefined
     ? new SequencerProvider()
     : new SequencerProvider({ baseUrl: process.env.STARKNET_PROVIDER_BASE_URL });
