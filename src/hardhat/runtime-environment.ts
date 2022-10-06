@@ -49,9 +49,7 @@ extendEnvironment((hre) => {
     const starknetSigners = await getDevNetPreloadedAccounts(testProvider);
 
     // We use the first signer as the default account so give the user fresh ones
-    const warpSigners = starknetSigners
-      .map((starknetSigner) => new WarpSigner(starknetSigner))
-      .slice(1);
+    const warpSigners = starknetSigners.map((starknetSigner) => new WarpSigner(starknetSigner));
 
     return Promise.resolve(warpSigners);
   };
@@ -60,8 +58,7 @@ extendEnvironment((hre) => {
   hre.ethers.getSigner = async (address: string) => {
     if (address) throw new Error('Signers at exact address not supported yet');
     const testProvider = getTestProvider();
-    // We use the first signer as the default account so give the user a fresh one
-    const [, starknetSigner] = await getDevNetPreloadedAccounts(testProvider);
+    const [starknetSigner] = await getDevNetPreloadedAccounts(testProvider);
 
     const warpSigner = new WarpSigner(starknetSigner);
 
