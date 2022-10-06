@@ -35,7 +35,7 @@ import { benchmark, normalizeAddress } from '../utils';
 import { WarpSigner } from './Signer';
 import { getSequencerProvider } from '../provider';
 import { WarpError } from './Error';
-import { ethTopicToEvent, snTopicToName } from '../globals';
+import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
 
 const ASSERT_ERROR = 'An ASSERT_EQ instruction failed';
 

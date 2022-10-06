@@ -17,7 +17,7 @@ import { WarpSigner } from './Signer';
 import { benchmark, getCompiledCairoFile, getContract, getContractsToDeclare } from '../utils';
 import { getDefaultAccount, getSequencerProvider } from '../provider';
 import { starknetKeccak } from 'starknet/dist/utils/hash';
-import { ethTopicToEvent, snTopicToName } from '../globals';
+import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
 
 export class ContractFactory {
   readonly interface: Interface;
