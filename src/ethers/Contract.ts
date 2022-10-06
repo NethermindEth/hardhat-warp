@@ -324,7 +324,7 @@ export class WarpContract extends EthersContract {
   ): Promise<ContractTransaction> {
     const txStatus = await this.sequencerProvider.getTransactionStatus(transaction_hash);
     const txTrace = await this.sequencerProvider.getTransactionTrace(transaction_hash);
-    benchmark(functionName, txTrace);
+    benchmark(this.pathToCairoFile, functionName, txTrace);
     if (txStatus.tx_status === 'NOT_RECEIVED') {
       throw new Error('Failed transactions not supported yet');
     }

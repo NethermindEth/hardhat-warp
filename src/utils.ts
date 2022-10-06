@@ -205,15 +205,20 @@ export function getContractsToDeclare(path: string): { [name: string]: string } 
   return Object.fromEntries([...matches].map((match) => [match[1], match[2]]));
 }
 
-export function benchmark(functionName: string, txTrace: GetTransactionTraceResponse) {
-  let benchmarkJSON = {};
+type Benchmark = { [file: string]: any };
+
+export function benchmark(
+  pathToCairoFile: string,
+  functionName: string,
+  txTrace: GetTransactionTraceResponse,
+) {
+  let benchmarkJSON: Benchmark = {};
   try {
-    benchmarkJSON = JSON.parse(fs.readFileSync('benchmark.json', 'utf-8') || '{}');
+    benchmarkJSON = JSON.parse(fs.readFileSync('benchmark.json', 'utf-8') || '{}') as Benchmark;
   } catch {
     benchmarkJSON = {};
   }
-  //@ts-ignore
-  benchmarkJSON[this.pathToCairoFile] = (benchmarkJSON[this.pathToCairoFile] || []).concat([
+  benchmarkJSON[pathToCairoFile] = (benchmarkJSON[pathToCairoFile] || []).concat([
     {
       [functionName]: txTrace.function_invocation.execution_resources,
     },

@@ -90,7 +90,7 @@ export class ContractFactory {
       });
     await this.starknetContractFactory.providerOrAccount.waitForTransaction(deployTxHash);
     const txTrace = await this.sequencerProvider.getTransactionTrace(deployTxHash);
-    benchmark('constructor', txTrace);
+    benchmark(this.pathToCairoFile, 'constructor', txTrace);
     const deployAddress = txTrace.function_invocation.result[0];
     const starknetContract = new Contract(
       this.starknetContractFactory.abi,
