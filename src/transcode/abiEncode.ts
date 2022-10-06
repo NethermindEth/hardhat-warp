@@ -1,6 +1,6 @@
 import { AbiCoder, ParamType } from 'ethers/lib/utils';
 import { Logger } from '@ethersproject/logger';
-import { Coder } from '@ethersproject/abi/lib/coders/abstract-coder';
+import { Coder, Reader } from '@ethersproject/abi/lib/coders/abstract-coder';
 import { AddressCoder } from '@ethersproject/abi/lib/coders/address';
 import { ArrayCoder } from '@ethersproject/abi/lib/coders/array';
 import { BooleanCoder } from '@ethersproject/abi/lib/coders/boolean';
@@ -11,6 +11,7 @@ import { NumberCoder } from '@ethersproject/abi/lib/coders/number';
 import { StringCoder } from '@ethersproject/abi/lib/coders/string';
 import { TupleCoder } from '@ethersproject/abi/lib/coders/tuple';
 import { version } from '@ethersproject/abi/lib/_version';
+import { normalizeAddress } from '../utils';
 
 const logger = new Logger(version);
 const paramTypeBytes = new RegExp(/^bytes([0-9]*)$/);
@@ -25,6 +26,9 @@ class WarpAbiCoder extends AbiCoder {
         throw new Error(`Address is not a valid starknet address ${value}`);
       }
       return writer.writeValue(value);
+    };
+    addressCoder.decode = (reader: Reader) => {
+      return normalizeAddress(reader.readValue().toHexString());
     };
     return addressCoder;
   }

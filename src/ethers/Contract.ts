@@ -101,7 +101,11 @@ export class WarpContract extends EthersContract {
     private ethersContractFactory: EthersContractFactory,
     private pathToCairoFile: string,
   ) {
-    super(starknetContract.address, ethersContractFactory.interface, ethersContractFactory.signer);
+    super(
+      normalizeAddress(starknetContract.address),
+      ethersContractFactory.interface,
+      ethersContractFactory.signer,
+    );
     this.functions = starknetContract.functions;
     this.callStatic = starknetContract.callStatic;
     this.estimateGas = starknetContract.estimateGas;
@@ -132,6 +136,8 @@ export class WarpContract extends EthersContract {
         this.ethTopicToEvent[warpTopic] = [eventFragment, selector];
       },
     );
+    // @ts-ignore
+    this.interface._abiCoder = abiCoder;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

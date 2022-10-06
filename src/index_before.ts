@@ -49,3 +49,14 @@ address.getAddress = (address: string): string => {
     throw new Error(`Address is not a valid starknet address ${address}`);
   }
 };
+
+export function fucku(properties: any) {
+  // @ts-ignore
+  properties.defineReadOnly = <T, K extends keyof T>(object: T, name: K, value: T[K]) => {
+    Object.defineProperty(object, name, {
+      enumerable: true,
+      value: value,
+      writable: true,
+    });
+  };
+}

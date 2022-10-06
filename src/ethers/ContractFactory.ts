@@ -10,7 +10,7 @@ import { Interface } from '@ethersproject/abi';
 import { TransactionRequest } from '@ethersproject/abstract-provider';
 import { ContractInterface } from '@ethersproject/contracts';
 import { WarpContract } from './Contract';
-import { encode, SolValue } from '../transcode';
+import { abiCoder, encode, SolValue } from '../transcode';
 import { readFileSync } from 'fs';
 import { WarpSigner } from './Signer';
 import { getContract, getContractsToDeclare } from '../utils';
@@ -32,6 +32,8 @@ export class ContractFactory {
     this.bytecode = ethersContractFactory.bytecode;
     this.signer = ethersContractFactory.signer; // Todo use starknet signers if possible
     this.pathToCairoFile = pathToCairoFile;
+    // @ts-ignore
+    this.interface._abiCoder = abiCoder;
   }
 
   // @TODO: Future; rename to populateTransaction?
