@@ -95,8 +95,7 @@ extendEnvironment((hre) => {
     }
   };
 
-  // @ts-ignore hre doesn't contain the waffle type information which is set by hardhat
-  hre.waffle.createFixtureLoader = (
+  const createFixtureLoader = (
     signers: WarpSigner[],
     // eslint-disable-next-line no-unused-vars
     provider: any,
@@ -140,5 +139,9 @@ extendEnvironment((hre) => {
   };
 
   // @ts-ignore hre doesn't contain the waffle type information which is set by hardhat
-  hre.waffle.loadFixture = hre.waffle.createFixtureLoader();
+  hre.waffle = {
+    createFixtureLoader: createFixtureLoader,
+    // @ts-ignore
+    loadFixture: createFixtureLoader(),
+  };
 });

@@ -350,7 +350,7 @@ export class WarpContract extends EthersContract {
       chainId: -1,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       wait: async (_: number | undefined) => {
-        this.sequencerProvider.waitForTransaction(transaction_hash);
+        await this.sequencerProvider.waitForTransaction(transaction_hash);
         const txStatus = await this.sequencerProvider.getTransactionStatus(transaction_hash);
         const txBlock = await this.sequencerProvider.getBlock(txStatus.block_hash);
         const txTrace = await this.sequencerProvider.getTransactionTrace(transaction_hash);

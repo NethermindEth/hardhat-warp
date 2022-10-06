@@ -6,7 +6,7 @@ export async function getStarkNetDevNetAccounts(): Promise<
   Array<StarknetDevnetGetAccountsResponse>
 > {
   const devnet_feeder_gateway_url: string =
-    process.env.STARKNET_PROVIDER_BASE_URL != undefined
+    process.env.STARKNET_PROVIDER_BASE_URL !== undefined
       ? process.env.STARKNET_PROVIDER_BASE_URL
       : 'http://127.0.0.1:5050';
   const response = await fetch(`${devnet_feeder_gateway_url}/predeployed_accounts`, {
@@ -47,7 +47,7 @@ export function getSequencerProvider(): SequencerProvider {
     console.warn(`Using sequencer for alpha-goerli.`);
   }
   return process.env.STARKNET_PROVIDER_BASE_URL === undefined
-    ? new SequencerProvider()
+    ? new SequencerProvider({ baseUrl: 'http://127.0.0.1:5050' })
     : new SequencerProvider({ baseUrl: process.env.STARKNET_PROVIDER_BASE_URL });
 }
 
