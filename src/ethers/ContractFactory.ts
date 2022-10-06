@@ -47,18 +47,29 @@ export class ContractFactory {
 
   async deploy(...args: Array<SolValue>): Promise<EthersContract> {
     await Promise.all(
-      Object.keys(getContractsToDeclare(this.pathToCairoFile)).map(async (name) => {
-        const factory = await getStarknetContractFactory(name);
+      Object.entries(getContractsToDeclare(this.pathToCairoFile)).map(
+        async ([name, expected_hash]) => {
+          const factory = await getStarknetContractFactory(name);
 
-        const declareResponse =
-          await this.starknetContractFactory.providerOrAccount.declareContract({
-            contract: factory.compiledContract,
-          });
+          const declareResponse =
+            await this.starknetContractFactory.providerOrAccount.declareContract({
+              contract: factory.compiledContract,
+            });
 
-        return this.starknetContractFactory.providerOrAccount.waitForTransaction(
-          declareResponse.transaction_hash,
-        );
-      }),
+          if (declareResponse.class_hash !== expected_hash) {
+            throw new Error(
+              `The hash of ${name} didn't match the hash expected by ${this.pathToCairoFile}\n` +
+                `Please compile the solidity for ${this.pathToCairoFile} again or update the hash.\n` +
+                `   ${name}'s expected hash: ${expected_hash}\n` +
+                `   ${name}'s actuall hash:  ${declareResponse.class_hash}\n`,
+            );
+          }
+
+          return this.starknetContractFactory.providerOrAccount.waitForTransaction(
+            declareResponse.transaction_hash,
+          );
+        },
+      ),
     );
 
     // Declare this contract

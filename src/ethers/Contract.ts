@@ -304,7 +304,6 @@ export class WarpContract extends EthersContract {
     // TODO: functions have a slightly different return type for single value returns
     this.functions[solName] = this.buildDefault(solName, fragment);
 
-    // TODO: callStatic have a slightly different return type for single value returns
     this.callStatic[solName] = this.buildCall(solName, fragment);
   }
 
