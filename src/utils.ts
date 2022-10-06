@@ -6,7 +6,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { exec, execSync } from 'child_process';
-import { SequencerProvider } from 'starknet';
 import { GetTransactionTraceResponse } from 'starknet/dist/types/api';
 
 export class WarpPluginError extends NomicLabsHardhatPluginError {
@@ -224,4 +223,8 @@ export function benchmark(
     },
   ]);
   fs.writeFileSync('benchmark.json', JSON.stringify(benchmarkJSON, null, 2));
+}
+
+export function getCompiledCairoFile(path: string) {
+  return path.slice(0, -6).concat('_compiled.json');
 }
