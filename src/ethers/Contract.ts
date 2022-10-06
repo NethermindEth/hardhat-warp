@@ -7,7 +7,6 @@ import {
   Event as StarkEvent,
   Account,
 } from 'starknet';
-import { starknetKeccak } from 'starknet/dist/utils/hash';
 import {
   BigNumberish,
   Contract as EthersContract,
@@ -19,7 +18,7 @@ import {
   BigNumber,
   ContractTransaction,
 } from '../../node_modules/ethers';
-import { EventFragment, FunctionFragment, Indexed, ParamType } from 'ethers/lib/utils';
+import { FunctionFragment, Indexed, ParamType } from 'ethers/lib/utils';
 import {
   BlockTag,
   EventFilter,
@@ -30,14 +29,13 @@ import {
   Block,
   TransactionReceipt,
 } from '@ethersproject/abstract-provider';
-import { id as keccak } from '@ethersproject/hash';
 import { abiCoder, decode, decodeEvents, decode_, encode, SolValue } from '../transcode';
 import { FIELD_PRIME } from 'starknet/dist/constants';
-import { readFileSync } from 'fs';
 import { benchmark, normalizeAddress } from '../utils';
 import { WarpSigner } from './Signer';
 import { getSequencerProvider } from '../provider';
 import { WarpError } from './Error';
+import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
 
 const ASSERT_ERROR = 'An ASSERT_EQ instruction failed';
 
@@ -87,11 +85,6 @@ export class WarpContract extends EthersContract {
 
   private sequencerProvider = getSequencerProvider();
 
-  snTopicToName: { [key: string]: string } = {};
-  // ethTopic here referes to the keccak of "event_name + selector"
-  // because that's the mangling that warp produces
-  private ethTopicToEvent: { [key: string]: [EventFragment, string] } = {};
-
   public ignoredTopics = new Set([
     // Event topic for fee invocation, done by StarkNet
     '0x99cd8bde557814842a3121e8ddfd433a539b8c9f14bf31ebf108d12e6196e9',
@@ -115,28 +108,6 @@ export class WarpContract extends EthersContract {
     this._deployedPromise = Promise.resolve(this);
     this.solidityCairoRemap();
 
-    const compiledCairo = JSON.parse(readFileSync(this.getCompiledCairoFile(), 'utf-8'));
-    let eventsJson = compiledCairo?.abi?.filter(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (data: { [key: string]: any }) => data?.type === 'event',
-    );
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    eventsJson = eventsJson.map((e: any) => ({
-      topic: `0x${starknetKeccak(e?.name).toString(16)}`,
-      ...e,
-    }));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    eventsJson.forEach((e: any) => {
-      this.snTopicToName[e.topic] = e.name;
-    });
-
-    Object.entries(this.ethersContractFactory.interface.events).forEach(
-      ([eventName, eventFragment]) => {
-        const selector = keccak(eventFragment.format('sighash'));
-        const warpTopic = `${eventName.split('(')[0]}_${selector.slice(2).slice(0, 8)}`;
-        this.ethTopicToEvent[warpTopic] = [eventFragment, selector];
-      },
-    );
     // @ts-ignore
     this.interface._abiCoder = abiCoder;
   }
@@ -144,10 +115,6 @@ export class WarpContract extends EthersContract {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   static getContractAddress(transaction: { from: string; nonce: BigNumberish }): string {
     throw new Error('Not implemented yet');
-  }
-
-  getCompiledCairoFile() {
-    return this.pathToCairoFile.slice(0, -6).concat('_compiled.json');
   }
 
   // @TODO: Allow timeout?
@@ -407,10 +374,10 @@ export class WarpContract extends EthersContract {
     transactionHash: string,
   ): Event[] {
     return events
-      .filter((e) => !this.ignoredTopics.has(e.keys[0]))
+      .filter((e) => snTopicToName[e.keys[0]]) //!this.ignoredTopics.has(e.keys[0]))
       .map((e, i): Event => {
         const currentTopic = e.keys[0];
-        const [eventFragment, selector] = this.ethTopicToEvent[this.snTopicToName[currentTopic]];
+        const [eventFragment, selector] = ethTopicToEvent[snTopicToName[currentTopic]];
 
         const results = decodeEvents(eventFragment.inputs, e.data);
         const resultsArray = decode_(eventFragment.inputs, e.data.values());

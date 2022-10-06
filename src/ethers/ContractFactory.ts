@@ -7,14 +7,17 @@ import {
   Contract as EthersContract,
 } from 'ethers';
 import { Interface } from '@ethersproject/abi';
+import { id as keccak } from '@ethersproject/hash';
 import { TransactionRequest } from '@ethersproject/abstract-provider';
 import { ContractInterface } from '@ethersproject/contracts';
 import { WarpContract } from './Contract';
 import { abiCoder, encode, SolValue } from '../transcode';
 import { readFileSync } from 'fs';
 import { WarpSigner } from './Signer';
-import { benchmark, getContract, getContractsToDeclare } from '../utils';
+import { benchmark, getCompiledCairoFile, getContract, getContractsToDeclare } from '../utils';
 import { getDefaultAccount, getSequencerProvider } from '../provider';
+import { starknetKeccak } from 'starknet/dist/utils/hash';
+import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
 
 export class ContractFactory {
   readonly interface: Interface;
@@ -32,6 +35,32 @@ export class ContractFactory {
     this.bytecode = ethersContractFactory.bytecode;
     this.signer = ethersContractFactory.signer; // Todo use starknet signers if possible
     this.pathToCairoFile = pathToCairoFile;
+
+    const compiledCairo = JSON.parse(
+      readFileSync(getCompiledCairoFile(this.pathToCairoFile), 'utf-8'),
+    );
+    let eventsJson = compiledCairo?.abi?.filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (data: { [key: string]: any }) => data?.type === 'event',
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    eventsJson = eventsJson.map((e: any) => ({
+      topic: `0x${starknetKeccak(e?.name).toString(16)}`,
+      ...e,
+    }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    eventsJson.forEach((e: any) => {
+      snTopicToName[e.topic] = e.name;
+    });
+
+    Object.entries(this.ethersContractFactory.interface.events).forEach(
+      ([eventName, eventFragment]) => {
+        const selector = keccak(eventFragment.format('sighash'));
+        const warpTopic = `${eventName.split('(')[0]}_${selector.slice(2).slice(0, 8)}`;
+        ethTopicToEvent[warpTopic] = [eventFragment, selector];
+      },
+    );
+
     // @ts-ignore
     this.interface._abiCoder = abiCoder;
   }
