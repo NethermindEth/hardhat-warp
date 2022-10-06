@@ -49,9 +49,7 @@ extendEnvironment((hre) => {
     const starknetSigners = await getDevNetPreloadedAccounts(testProvider);
 
     // We use the first signer as the default account so give the user fresh ones
-    const warpSigners = starknetSigners
-      .map((starknetSigner) => new WarpSigner(starknetSigner))
-      .slice(1);
+    const warpSigners = starknetSigners.map((starknetSigner) => new WarpSigner(starknetSigner));
 
     return Promise.resolve(warpSigners);
   };

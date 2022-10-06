@@ -1,5 +1,4 @@
 import { Account, ProviderInterface, RpcProvider, SequencerProvider, ec } from 'starknet';
-import { getKeyPair } from 'starknet/dist/utils/ellipticCurve';
 import { StarknetDevnetGetAccountsResponse } from './utils';
 
 export async function getStarkNetDevNetAccounts(): Promise<
@@ -14,28 +13,6 @@ export async function getStarkNetDevNetAccounts(): Promise<
   });
   return response.json();
 }
-
-// test account with fee token balance
-export const getTestAccounts = async (provider: ProviderInterface) => {
-  const accounts = await getStarkNetDevNetAccounts();
-
-  const testAccountAAddress = accounts[0].address;
-  const testAccountAPrivateKey = accounts[0].private_key;
-  const testAccountA = new Account(
-    provider,
-    testAccountAAddress,
-    getKeyPair(testAccountAPrivateKey),
-  );
-
-  const testAccountBAddress = accounts[0].address;
-  const testAccountBPrivateKey = accounts[0].private_key;
-  const testAccountB = new Account(
-    provider,
-    testAccountBAddress,
-    getKeyPair(testAccountBPrivateKey),
-  );
-  return [testAccountA, testAccountB];
-};
 
 // TODO use .starknet_accounts
 export async function getDefaultAccount(): Promise<Account> {
