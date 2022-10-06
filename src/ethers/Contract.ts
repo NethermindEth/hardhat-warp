@@ -37,6 +37,7 @@ import { readFileSync } from 'fs';
 import { benchmark, normalizeAddress } from '../utils';
 import { WarpSigner } from './Signer';
 import { getSequencerProvider } from '../provider';
+import { WarpError } from './Error';
 
 const ASSERT_ERROR = 'An ASSERT_EQ instruction failed';
 
@@ -250,21 +251,27 @@ export class WarpContract extends EthersContract {
         throw new Error('Expect contract provider to be account');
       // abiCoder checks for correct Sol input
       const abiEncodedInputs = abiCoder.encode(fragment.inputs, args);
-      const invokeResponse = await this.starknetContract.providerOrAccount.execute(
-        {
-          contractAddress: this.starknetContract.address,
-          calldata: calldata,
-          entrypoint: cairoFuncName,
-        },
-        undefined,
-        {
-          // Set maxFee to some high number for goerli
-          maxFee: process.env.STARKNET_PROVIDER_BASE_URL ? undefined : (2n ** 250n).toString(),
-        },
-      );
-      const sigHash = this.ethersContractFactory.interface.getSighash(fragment);
-      const data = sigHash.concat(abiEncodedInputs.substring(2));
-      return this.toEtheresTransactionResponse(invokeResponse, data, solName);
+      try {
+        const invokeResponse = await this.starknetContract.providerOrAccount.execute(
+          {
+            contractAddress: this.starknetContract.address,
+            calldata: calldata,
+            entrypoint: cairoFuncName,
+          },
+          undefined,
+          {
+            // Set maxFee to some high number for goerli
+            maxFee: process.env.STARKNET_PROVIDER_BASE_URL ? undefined : (2n ** 250n).toString(),
+          },
+        );
+        const sigHash = this.ethersContractFactory.interface.getSighash(fragment);
+        const data = sigHash.concat(abiEncodedInputs.substring(2));
+        return this.toEtheresTransactionResponse(invokeResponse, data, solName);
+      } catch (e) {
+        if (e instanceof GatewayError && e.message.includes(ASSERT_ERROR)) {
+          throw new WarpError(e.message);
+        } else throw e;
+      }
     };
   }
 
@@ -287,7 +294,7 @@ export class WarpContract extends EthersContract {
         return output;
       } catch (e) {
         if (e instanceof GatewayError && e.message.includes(ASSERT_ERROR)) {
-          throw new Error('Starknet reverted transaction: ' + e.message);
+          throw new WarpError(e.message);
         } else {
           throw e;
         }
@@ -330,12 +337,11 @@ export class WarpContract extends EthersContract {
     const txResponse = await this.sequencerProvider.getTransaction(transaction_hash);
     // Handle failure case
     if (txStatus.tx_status === 'REJECTED') {
-      throw new Error(
-        'Starknet reverted transaction: ' + (JSON.stringify(txStatus.tx_failure_reason) || ''),
-      );
+      throw new WarpError(txStatus.tx_failure_reason?.error_message || '');
     }
     const txBlock = await this.sequencerProvider.getBlock(txStatus.block_hash);
     const latestBlock = await this.sequencerProvider.getBlock();
+    const chainId = parseInt(await this.sequencerProvider.getChainId(), 16);
 
     return {
       hash: txResponse.transaction_hash as string,
@@ -347,7 +353,7 @@ export class WarpContract extends EthersContract {
       nonce: txResponse.nonce ? parseInt(txResponse.nonce) : -1,
       data: data,
       value: BigNumber.from(0),
-      chainId: -1,
+      chainId,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       wait: async (_: number | undefined) => {
         await this.sequencerProvider.waitForTransaction(transaction_hash);
@@ -358,6 +364,7 @@ export class WarpContract extends EthersContract {
           transaction_hash,
         )) as InvokeTransactionReceiptResponse;
         const latestBlock = await this.sequencerProvider.getBlock();
+
         const ethEvents = this.starknetEventsToEthEvents(
           txReceipt.events,
           txBlock.block_number,
