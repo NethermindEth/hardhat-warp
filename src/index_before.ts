@@ -50,7 +50,8 @@ address.getAddress = (address: string): string => {
   }
 };
 
-export function fucku(properties: any) {
+export function freedom(require: NodeRequire) {
+  const properties = require('@ethersproject/properties');
   // @ts-ignore
   properties.defineReadOnly = <T, K extends keyof T>(object: T, name: K, value: T[K]) => {
     Object.defineProperty(object, name, {
