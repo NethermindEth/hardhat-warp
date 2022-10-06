@@ -6,6 +6,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { exec, execSync } from 'child_process';
+import { SequencerProvider } from 'starknet';
+import { GetTransactionTraceResponse } from 'starknet/dist/types/api';
 
 export class WarpPluginError extends NomicLabsHardhatPluginError {
   constructor(message: string, parent?: Error, shouldBeReported?: boolean) {
@@ -201,4 +203,20 @@ export function getContractsToDeclare(path: string): { [name: string]: string } 
   const cairoFile = fs.readFileSync(path, 'utf-8');
   const matches = cairoFile.matchAll(declareRegex);
   return Object.fromEntries([...matches].map((match) => [match[1], match[2]]));
+}
+
+export function benchmark(functionName: string, txTrace: GetTransactionTraceResponse) {
+  let benchmarkJSON = {};
+  try {
+    benchmarkJSON = JSON.parse(fs.readFileSync('benchmark.json', 'utf-8') || '{}');
+  } catch {
+    benchmarkJSON = {};
+  }
+  //@ts-ignore
+  benchmarkJSON[this.pathToCairoFile] = (benchmarkJSON[this.pathToCairoFile] || []).concat([
+    {
+      [functionName]: txTrace.function_invocation.execution_resources,
+    },
+  ]);
+  fs.writeFileSync('benchmark.json', JSON.stringify(benchmarkJSON, null, 2));
 }

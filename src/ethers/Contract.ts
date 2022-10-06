@@ -34,7 +34,7 @@ import { id as keccak } from '@ethersproject/hash';
 import { abiCoder, decode, decodeEvents, decode_, encode, SolValue } from '../transcode';
 import { FIELD_PRIME } from 'starknet/dist/constants';
 import { readFileSync } from 'fs';
-import { normalizeAddress } from '../utils';
+import { benchmark, normalizeAddress } from '../utils';
 import { WarpSigner } from './Signer';
 import { getSequencerProvider } from '../provider';
 
@@ -264,7 +264,7 @@ export class WarpContract extends EthersContract {
       );
       const sigHash = this.ethersContractFactory.interface.getSighash(fragment);
       const data = sigHash.concat(abiEncodedInputs.substring(2));
-      return this.toEtheresTransactionResponse(invokeResponse, data);
+      return this.toEtheresTransactionResponse(invokeResponse, data, solName);
     };
   }
 
@@ -320,10 +320,11 @@ export class WarpContract extends EthersContract {
   private async toEtheresTransactionResponse(
     { transaction_hash }: InvokeFunctionResponse,
     data: string,
+    functionName: string,
   ): Promise<ContractTransaction> {
     const txStatus = await this.sequencerProvider.getTransactionStatus(transaction_hash);
     const txTrace = await this.sequencerProvider.getTransactionTrace(transaction_hash);
-
+    benchmark(functionName, txTrace);
     if (txStatus.tx_status === 'NOT_RECEIVED') {
       throw new Error('Failed transactions not supported yet');
     }

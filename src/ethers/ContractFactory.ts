@@ -13,7 +13,7 @@ import { WarpContract } from './Contract';
 import { abiCoder, encode, SolValue } from '../transcode';
 import { readFileSync } from 'fs';
 import { WarpSigner } from './Signer';
-import { getContract, getContractsToDeclare } from '../utils';
+import { benchmark, getContract, getContractsToDeclare } from '../utils';
 import { getDefaultAccount, getSequencerProvider } from '../provider';
 
 export class ContractFactory {
@@ -89,9 +89,9 @@ export class ContractFactory {
         entrypoint: 'deploy_contract',
       });
     await this.starknetContractFactory.providerOrAccount.waitForTransaction(deployTxHash);
-
-    const deployAddress = (await this.sequencerProvider.getTransactionTrace(deployTxHash))
-      .function_invocation.result[0];
+    const txTrace = await this.sequencerProvider.getTransactionTrace(deployTxHash);
+    benchmark('constructor', txTrace);
+    const deployAddress = txTrace.function_invocation.result[0];
     const starknetContract = new Contract(
       this.starknetContractFactory.abi,
       deployAddress,
