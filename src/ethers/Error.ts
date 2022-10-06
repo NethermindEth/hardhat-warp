@@ -25,7 +25,6 @@ export class WarpError extends Error {
       console.warn(`Could not extract revert reason`);
       return '';
     }
-    console.log(matches);
     return matches[1];
   }
 }
