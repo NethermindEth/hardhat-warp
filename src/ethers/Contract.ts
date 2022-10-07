@@ -227,10 +227,10 @@ export class WarpContract extends EthersContract {
     const inv = this.buildInvoke(solName, fragment);
     return async (...args: SolValue[]) => {
       // Ada forgive us
-      await devnet.dump('.CALL_ROLLBACK');
+      await devnet.dump('CALL_ROLLBACK');
       const result = (await (await inv(...args)).wait()).cairoResult;
       const output = this.parseResponse(fragment.outputs, result);
-      await devnet.load('.CALL_ROLLBACK');
+      await devnet.load('CALL_ROLLBACK');
       return output;
     };
   }
