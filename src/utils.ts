@@ -218,7 +218,7 @@ export function benchmark(
   }
   benchmarkJSON[pathToCairoFile] = (benchmarkJSON[pathToCairoFile] || []).concat([
     {
-      [functionName]: txTrace.function_invocation.execution_resources,
+      [functionName]: txTrace?.function_invocation?.execution_resources,
     },
   ]);
   fs.writeFileSync('benchmark.json', JSON.stringify(benchmarkJSON, null, 2));
