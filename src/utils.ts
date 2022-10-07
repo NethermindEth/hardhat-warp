@@ -7,6 +7,7 @@ import * as path from 'path';
 import { exec, execSync } from 'child_process';
 import { GetTransactionTraceResponse } from 'starknet/dist/types/api';
 import { globalHRE } from './hardhat/runtime-environment';
+import { getDevnetPort } from './provider';
 
 export class WarpPluginError extends NomicLabsHardhatPluginError {
   constructor(message: string, parent?: Error, shouldBeReported?: boolean) {
@@ -209,13 +210,17 @@ export function benchmark(
 ) {
   let benchmarkJSON: Benchmark = {};
   try {
-    benchmarkJSON = JSON.parse(fs.readFileSync('benchmark.json', 'utf-8') || '{}') as Benchmark;
+    benchmarkJSON = JSON.parse(
+      fs.readFileSync(`${getDevnetPort()}.benchmark.json`, 'utf-8') || '{}',
+    ) as Benchmark;
   } catch {
     benchmarkJSON = {};
   }
   benchmarkJSON[pathToCairoFile] = (benchmarkJSON[pathToCairoFile] || []).concat([
     {
-      [functionName]: txTrace?.function_invocation?.execution_resources,
+      [functionName]: {
+        function_invocation: txTrace?.function_invocation,
+      },
     },
   ]);
   fs.writeFileSync('benchmark.json', JSON.stringify(benchmarkJSON, null, 2));
