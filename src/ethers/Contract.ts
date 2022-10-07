@@ -34,7 +34,7 @@ import { abiCoder, decode, decodeEvents, decode_, encode, SolValue } from '../tr
 import { FIELD_PRIME } from 'starknet/dist/constants';
 import { benchmark, normalizeAddress } from '../utils';
 import { WarpSigner } from './Signer';
-import { getSequencerProvider } from '../provider';
+import { getDevnetProvider } from '../provider';
 import { WarpError } from './Error';
 import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
 import { devnet } from '../devnet';
@@ -60,7 +60,7 @@ export class WarpContract extends EthersContract {
   // address if an ENS name was used in the constructor
   readonly resolvedAddress: Promise<string>;
 
-  private sequencerProvider = getSequencerProvider();
+  private sequencerProvider = getDevnetProvider();
 
   public ignoredTopics = new Set([
     // Event topic for fee invocation, done by StarkNet
@@ -206,10 +206,11 @@ export class WarpContract extends EthersContract {
             entrypoint: cairoFuncName,
           },
           undefined,
-          {
-            // Set maxFee to some high number for goerli
-            maxFee: process.env.STARKNET_PROVIDER_BASE_URL ? undefined : (2n ** 250n).toString(),
-          },
+          // TODO support this again when we look at using goerli
+          // {
+          //   // Set maxFee to some high number for goerli
+          //   maxFee: process.env.STARKNET_PROVIDER_BASE_URL ? undefined : (2n ** 250n).toString(),
+          // },
         );
         const sigHash = this.ethersContractFactory.interface.getSighash(fragment);
         const data = sigHash.concat(abiEncodedInputs.substring(2));
@@ -226,10 +227,10 @@ export class WarpContract extends EthersContract {
     const inv = this.buildInvoke(solName, fragment);
     return async (...args: SolValue[]) => {
       // Ada forgive us
-      await devnet.dump('.CALL_ROLLBACK.snapshot');
+      await devnet.dump('.CALL_ROLLBACK');
       const result = (await (await inv(...args)).wait()).cairoResult;
       const output = this.parseResponse(fragment.outputs, result);
-      await devnet.load('.CALL_ROLLBACK.snapshot');
+      await devnet.load('.CALL_ROLLBACK');
       return output;
     };
   }

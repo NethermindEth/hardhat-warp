@@ -6,6 +6,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { exec, execSync } from 'child_process';
 import { GetTransactionTraceResponse } from 'starknet/dist/types/api';
+import { globalHRE } from './hardhat/runtime-environment';
 
 export class WarpPluginError extends NomicLabsHardhatPluginError {
   constructor(message: string, parent?: Error, shouldBeReported?: boolean) {
@@ -175,15 +176,11 @@ export function calculateStarkNetAddress(
   constructorCalldata: string,
   deployAddress: string,
 ): string {
-  const WARP_VENV_PREFIX = path.resolve(
-    __dirname,
-    '..',
-    'node_modules',
-    '@nethermindeth',
-    'warp',
-    'warp_venv',
-    'bin',
-  );
+  if (!globalHRE.config.networks.integratedDevnet.venv)
+    throw new Error(
+      'A path to venv with starknet-devnet is required, please check the hardhat-warp install documentation',
+    );
+  const WARP_VENV_PREFIX = path.resolve(globalHRE.config.networks.integratedDevnet.venv, 'bin');
 
   const PATH_PREFIX = `PATH=${WARP_VENV_PREFIX}:$PATH`;
   const SCRIPT_PATH = path.resolve(__dirname, '..', 'script', 'calculate_address.py');

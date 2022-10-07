@@ -1,13 +1,16 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/src/signers';
-import { extendEnvironment } from 'hardhat/config';
+import { extendConfig, extendEnvironment } from 'hardhat/config';
 import { ethers } from 'ethers';
 
-import { getDefaultAccount, getDevNetPreloadedAccounts, getTestProvider } from '../provider';
+import { getDefaultAccount, getDevNetPreloadedAccounts, getDevnetProvider } from '../provider';
 import { WarpSigner } from '../ethers/Signer';
 import { ContractFactory, getStarknetContractFactory } from '../ethers/ContractFactory';
 import { getContract } from '../utils';
 import '../type-extensions';
 import { devnet } from '../devnet';
+import { HardhatRuntimeEnvironment } from 'hardhat/types';
+
+export let globalHRE: HardhatRuntimeEnvironment;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Fixture<T> = (signers: WarpSigner[], provider: any) => Promise<T>;
@@ -21,7 +24,18 @@ interface Snapshot<T> {
   signers: WarpSigner[];
 }
 
+extendConfig((config) => {
+  // TODO use the venv here to run the python script
+  const venv = config.networks.integratedDevnet?.venv;
+  if (!venv) {
+    throw new Error(
+      'A path to a venv is required in order to invoke an instance of python with cairo-lang available, please check the hardhat-warp install documentation',
+    );
+  }
+});
+
 extendEnvironment((hre) => {
+  globalHRE = hre;
   // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
   const getContractFactory = hre.ethers.getContractFactory;
 
@@ -49,8 +63,7 @@ extendEnvironment((hre) => {
 
   // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
   hre.ethers.getSigners = async () => {
-    const testProvider = getTestProvider();
-    const starknetSigners = await getDevNetPreloadedAccounts(testProvider);
+    const starknetSigners = await getDevNetPreloadedAccounts(getDevnetProvider());
 
     // We use the first signer as the default account so give the user fresh ones
     const warpSigners = starknetSigners.map((starknetSigner) => new WarpSigner(starknetSigner));
@@ -61,8 +74,7 @@ extendEnvironment((hre) => {
   // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
   hre.ethers.getSigner = async (address: string) => {
     if (address) throw new Error('Signers at exact address not supported yet');
-    const testProvider = getTestProvider();
-    const [starknetSigner] = await getDevNetPreloadedAccounts(testProvider);
+    const [starknetSigner] = await getDevNetPreloadedAccounts(getDevnetProvider());
 
     const warpSigner = new WarpSigner(starknetSigner);
 
@@ -106,11 +118,9 @@ extendEnvironment((hre) => {
     const snapshots: Array<Snapshot<any>> = [];
 
     return async function load<T>(fixture: Fixture<T>): Promise<T> {
-      if (process.env.STARKNET_PROVIDER_BASE_URL === undefined)
-        throw new Error('Fixtures only supported on local devnet');
       const snapshot = snapshots.find((p) => p.fixture === fixture);
       if (snapshot !== undefined) {
-        await hre.devnet.load('fixture.' + snapshot.id);
+        await devnet.load('fixture.' + snapshot.id);
         return snapshot.data;
       } else {
         const data = await fixture(signers, provider);

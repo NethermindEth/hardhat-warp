@@ -1,24 +1,24 @@
+import { resolve } from 'path';
+import { getDevnetPort, getDevnetUrl } from './provider';
 export const devnet = {
-  load: async (id: string) => {
-    if (process.env.STARKNET_PROVIDER_BASE_URL === undefined)
-      throw new Error('load only supported on local devnet');
-    await fetch(new URL('load', process.env.STARKNET_PROVIDER_BASE_URL), {
+  load: async (id: string, snapshotResolutionPath = '.') => {
+    const path = resolve(`.${getDevnetPort()}.${id}.snapshot`, snapshotResolutionPath);
+    await fetch(new URL('load', getDevnetUrl()), {
       method: 'POST',
       body: JSON.stringify({
-        path: `.${id}.snapshot`,
+        path,
       }),
       headers: {
         'Content-Type': 'application/json',
       },
     });
   },
-  dump: async (id: string) => {
-    if (process.env.STARKNET_PROVIDER_BASE_URL === undefined)
-      throw new Error('dump only supported on local devnet');
-    await fetch(new URL('dump', process.env.STARKNET_PROVIDER_BASE_URL), {
+  dump: async (id: string, snapshotResolutionPath = '.') => {
+    const path = resolve(`.${getDevnetPort()}.${id}.snapshot`, snapshotResolutionPath);
+    await fetch(new URL('dump', getDevnetUrl()), {
       method: 'POST',
       body: JSON.stringify({
-        path: `.${id}.snapshot`,
+        path,
       }),
       headers: {
         'Content-Type': 'application/json',
@@ -26,9 +26,7 @@ export const devnet = {
     });
   },
   restart: async () => {
-    if (process.env.STARKNET_PROVIDER_BASE_URL === undefined)
-      throw new Error('restart only supported on local devnet');
-    await fetch(new URL('restart', process.env.STARKNET_PROVIDER_BASE_URL), {
+    await fetch(new URL('restart', getDevnetUrl()), {
       method: 'POST',
     });
   },

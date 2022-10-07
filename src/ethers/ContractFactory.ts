@@ -15,7 +15,7 @@ import { abiCoder, encode, SolValue } from '../transcode';
 import { readFileSync } from 'fs';
 import { WarpSigner } from './Signer';
 import { benchmark, getCompiledCairoFile, getContract, getContractsToDeclare } from '../utils';
-import { getDefaultAccount, getSequencerProvider } from '../provider';
+import { getDefaultAccount, getDevnetProvider } from '../provider';
 import { starknetKeccak } from 'starknet/dist/utils/hash';
 import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
 
@@ -24,7 +24,7 @@ export class ContractFactory {
   readonly bytecode: string;
   readonly signer: Signer;
   pathToCairoFile: string;
-  private sequencerProvider = getSequencerProvider();
+  private sequencerProvider = getDevnetProvider();
 
   constructor(
     private starknetContractFactory: StarknetContractFactory,
