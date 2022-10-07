@@ -1,3 +1,4 @@
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/src/signers';
 import { extendEnvironment } from 'hardhat/config';
 import { ethers } from 'ethers';
 
@@ -5,14 +6,16 @@ import { getDefaultAccount, getDevNetPreloadedAccounts, getTestProvider } from '
 import { WarpSigner } from '../ethers/Signer';
 import { ContractFactory, getStarknetContractFactory } from '../ethers/ContractFactory';
 import { getContract } from '../utils';
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/src/signers';
+import '../type-extensions';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Fixture<T> = (signers: WarpSigner[], provider: any) => Promise<T>;
 
 interface Snapshot<T> {
   fixture: Fixture<T>;
   data: T;
   id: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   provider: any;
   signers: WarpSigner[];
 }
@@ -94,10 +97,11 @@ extendEnvironment((hre) => {
 
   const createFixtureLoader = (
     signers: WarpSigner[],
-    // eslint-disable-next-line no-unused-vars
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     provider: any,
   ) => {
     if (provider) throw new Error('Fixture providers not supported');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const snapshots: Array<Snapshot<any>> = [];
 
     return async function load<T>(fixture: Fixture<T>): Promise<T> {
@@ -105,30 +109,12 @@ extendEnvironment((hre) => {
         throw new Error('Fixtures only supported on local devnet');
       const snapshot = snapshots.find((p) => p.fixture === fixture);
       if (snapshot !== undefined) {
-        await fetch(new URL('load', process.env.STARKNET_PROVIDER_BASE_URL), {
-          method: 'POST',
-          body: JSON.stringify({
-            path: `.${snapshot.id}.snapshot`,
-          }),
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-
+        await hre.devnet.load('fixture.' + snapshot.id);
         return snapshot.data;
       } else {
         const data = await fixture(signers, provider);
         const id = snapshots.length;
-        await fetch(new URL('dump', process.env.STARKNET_PROVIDER_BASE_URL), {
-          method: 'POST',
-          body: JSON.stringify({
-            path: `.${id}.snapshot`,
-          }),
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-
+        await hre.devnet.dump('fixture.' + snapshot);
         snapshots.push({ fixture, data, id, provider, signers });
         return data;
       }
@@ -140,5 +126,41 @@ extendEnvironment((hre) => {
     createFixtureLoader: createFixtureLoader,
     // @ts-ignore
     loadFixture: createFixtureLoader(),
+  };
+
+  hre.devnet = {
+    load: async (id: string) => {
+      if (process.env.STARKNET_PROVIDER_BASE_URL === undefined)
+        throw new Error('load only supported on local devnet');
+      await fetch(new URL('load', process.env.STARKNET_PROVIDER_BASE_URL), {
+        method: 'POST',
+        body: JSON.stringify({
+          path: `.${id}.snapshot`,
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+    dump: async (id: string) => {
+      if (process.env.STARKNET_PROVIDER_BASE_URL === undefined)
+        throw new Error('dump only supported on local devnet');
+      await fetch(new URL('dump', process.env.STARKNET_PROVIDER_BASE_URL), {
+        method: 'POST',
+        body: JSON.stringify({
+          path: `.${id}.snapshot`,
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+    restart: async () => {
+      if (process.env.STARKNET_PROVIDER_BASE_URL === undefined)
+        throw new Error('restart only supported on local devnet');
+      await fetch(new URL('restart', process.env.STARKNET_PROVIDER_BASE_URL), {
+        method: 'POST',
+      });
+    },
   };
 });
