@@ -9,6 +9,7 @@
   "devDependencies": {
     "@nethermindeth/warp": "^2.1.1",
     "@nomiclabs/hardhat-ethers": "^2.1.1",
+    "@shardlabs/starknet-hardhat-plugin": "^0.6.6",
     "@typechain/starknet": "^0.2.3",
     "@types/chai": "^4.1.7",
     "@types/elliptic": "^6.4.14",

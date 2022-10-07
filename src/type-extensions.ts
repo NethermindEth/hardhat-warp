@@ -1,7 +1,8 @@
 import 'hardhat/types/runtime';
+import '@shardlabs/starknet-hardhat-plugin';
 
 declare module 'hardhat/types/runtime' {
-  interface HardhatRuntimeEnvironment {
+  export interface HardhatRuntimeEnvironment {
     devnet: {
       load: (id: string) => Promise<void>;
       dump: (id: string) => Promise<void>;
@@ -13,27 +14,14 @@ declare module 'hardhat/types/runtime' {
 import 'hardhat/types/config';
 
 declare module 'hardhat/types/config' {
-  export interface ProjectPathsUserConfig {
-    warp?: string;
+  export interface NetworksConfig {
+    alpha: HttpNetworkConfig;
+    alphaMainnet: HttpNetworkConfig;
+    integratedDevnet: HardhatNetworkConfig;
   }
 
-  export interface ProjectPathsConfig {
-    warp: string;
-  }
-
-  export interface StarknetConfig {
-    wallet: string;
-  }
-
-  export interface StarknetUserConfig {
-    wallet?: string;
-  }
-
-  export interface HardhatConfig {
-    starknet: StarknetConfig;
-  }
-
-  export interface HardhatUserConfig {
-    starknet?: StarknetUserConfig;
+  export interface HardhatNetworkConfig {
+    port: string;
+    snapshots: string;
   }
 }
