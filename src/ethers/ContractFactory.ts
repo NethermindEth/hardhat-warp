@@ -94,9 +94,14 @@ export class ContractFactory {
             );
           }
 
-          return this.starknetContractFactory.providerOrAccount.waitForTransaction(
+          await this.starknetContractFactory.providerOrAccount.waitForTransaction(
             declareResponse.transaction_hash,
           );
+
+          const txTrace = await this.sequencerProvider.getTransactionTrace(
+            declareResponse.transaction_hash,
+          );
+          benchmark(getContract(name).getCairoFile(), 'DECLARE', txTrace);
         },
       ),
     );
@@ -108,6 +113,10 @@ export class ContractFactory {
     await this.starknetContractFactory.providerOrAccount.waitForTransaction(
       declareResponse.transaction_hash,
     );
+    const declareTrace = await this.sequencerProvider.getTransactionTrace(
+      declareResponse.transaction_hash,
+    );
+    benchmark(this.pathToCairoFile, 'DECLARE', declareTrace);
 
     const inputs = encode(this.interface.deploy.inputs, args);
 

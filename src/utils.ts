@@ -1,6 +1,5 @@
 import { NomicLabsHardhatPluginError } from 'hardhat/plugins';
 import 'colors';
-import { ContractInfo } from './ethers/Contract';
 import { HashInfo } from './Hash';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -227,4 +226,35 @@ export function benchmark(
 
 export function getCompiledCairoFile(path: string) {
   return path.slice(0, -6).concat('_compiled.json');
+}
+
+export class ContractInfo {
+  private name: string;
+  private solidityFile: string;
+
+  constructor(name: string, solidityFile: string) {
+    this.name = name;
+    this.solidityFile = solidityFile;
+  }
+
+  getName() {
+    return this.name;
+  }
+
+  getSolidityFile() {
+    return this.solidityFile;
+  }
+
+  getCairoFile() {
+    const cairoFile = this.solidityFile
+      .slice(0, -4)
+      .replaceAll('_', '__')
+      .replaceAll('-', '_')
+      .concat(`__WC__${this.name}.cairo`);
+    return path.join('warp_output', cairoFile);
+  }
+
+  getCompiledJson() {
+    return this.getCairoFile().slice(0, -6).concat('_compiled.json');
+  }
 }

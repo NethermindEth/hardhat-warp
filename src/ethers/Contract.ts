@@ -17,6 +17,7 @@ import {
   Event,
   BigNumber,
   ContractTransaction,
+  ContractReceipt,
 } from '../../node_modules/ethers';
 import { FunctionFragment, Indexed, ParamType } from 'ethers/lib/utils';
 import {
@@ -36,38 +37,14 @@ import { WarpSigner } from './Signer';
 import { getSequencerProvider } from '../provider';
 import { WarpError } from './Error';
 import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
+import { devnet } from '../devnet';
 
 const ASSERT_ERROR = 'An ASSERT_EQ instruction failed';
 
-export class ContractInfo {
-  private name: string;
-  private solidityFile: string;
-
-  constructor(name: string, solidityFile: string) {
-    this.name = name;
-    this.solidityFile = solidityFile;
-  }
-
-  getName() {
-    return this.name;
-  }
-
-  getSolidityFile() {
-    return this.solidityFile;
-  }
-
-  getCairoFile() {
-    const cairoFile = this.solidityFile
-      .slice(0, -4)
-      .replaceAll('_', '__')
-      .replaceAll('-', '_')
-      .concat(`__WC__${this.name}.cairo`);
-    return path.join('warp_output', cairoFile);
-  }
-
-  getCompiledJson() {
-    return this.getCairoFile().slice(0, -6).concat('_compiled.json');
-  }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type CairoContractReceipt = ContractReceipt & { cairoResult: any[] };
+interface CairoContractTransaction extends ContractTransaction {
+  wait(confirmations?: number): Promise<CairoContractReceipt>;
 }
 
 export class WarpContract extends EthersContract {
@@ -208,7 +185,10 @@ export class WarpContract extends EthersContract {
     return this.buildInvoke(solName, fragment);
   }
 
-  private buildInvoke(solName: string, fragment: FunctionFragment) {
+  private buildInvoke(
+    solName: string,
+    fragment: FunctionFragment,
+  ): (...args: SolValue[]) => Promise<CairoContractTransaction> {
     const cairoFuncName = solName + '_' + this.interface.getSighash(fragment).slice(2); // Todo finish this keccak (use web3)
 
     return async (...args: SolValue[]) => {
@@ -243,29 +223,14 @@ export class WarpContract extends EthersContract {
   }
 
   private buildCall(solName: string, fragment: FunctionFragment) {
-    const cairoFuncName = solName + '_' + this.interface.getSighash(fragment).slice(2); // Todo finish this keccak (use web3)
+    const inv = this.buildInvoke(solName, fragment);
     return async (...args: SolValue[]) => {
-      // abiCoder checks for correct Sol input
-      abiCoder.encode(fragment.inputs, args);
-      const calldata = encode(fragment.inputs, args);
-      try {
-        const output_before = await this.starknetContract.providerOrAccount.callContract(
-          {
-            contractAddress: this.starknetContract.address,
-            calldata,
-            entrypoint: cairoFuncName,
-          },
-          'pending',
-        );
-        const output = this.parseResponse(fragment.outputs, output_before.result);
-        return output;
-      } catch (e) {
-        if (e instanceof GatewayError && e.message.includes(ASSERT_ERROR)) {
-          throw new WarpError(e.message);
-        } else {
-          throw e;
-        }
-      }
+      // Ada forgive us
+      await devnet.dump('.CALL_ROLLBACK.snapshot');
+      const result = (await (await inv(...args)).wait()).cairoResult;
+      const output = this.parseResponse(fragment.outputs, result);
+      await devnet.load('.CALL_ROLLBACK.snapshot');
+      return output;
     };
   }
 
@@ -294,7 +259,7 @@ export class WarpContract extends EthersContract {
     { transaction_hash }: InvokeFunctionResponse,
     data: string,
     functionName: string,
-  ): Promise<ContractTransaction> {
+  ): Promise<CairoContractTransaction> {
     const txStatus = await this.sequencerProvider.getTransactionStatus(transaction_hash);
     const txTrace = await this.sequencerProvider.getTransactionTrace(transaction_hash);
     benchmark(this.pathToCairoFile, functionName, txTrace);
@@ -361,6 +326,7 @@ export class WarpContract extends EthersContract {
           events: ethEvents,
           byzantium: true,
           type: 0, // TODO: check this is the right format
+          cairoResult: txTrace.function_invocation.result,
         });
       },
     };
