@@ -39,8 +39,8 @@ function encodePrimitive(typeString: string, inputs: IterableIterator<SolValue>)
   if (typeString === 'fixed' || typeString === 'ufixed') {
     throw new Error('Fixed types not supported by Warp');
   }
-  if (/byte\d*$/.test(typeString)) {
-    const nbits = parseInt(typeString.slice(4), 10) * 8;
+  if (/bytes\d*$/.test(typeString)) {
+    const nbits = parseInt(typeString.slice(5), 10) * 8;
     return encodeAsUintOrFelt(typeString, inputs, nbits);
   }
   if (typeString === 'bytes') {
