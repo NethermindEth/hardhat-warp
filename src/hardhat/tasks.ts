@@ -9,7 +9,6 @@ import { subtask, types } from 'hardhat/config';
 import { glob } from 'hardhat/internal/util/glob';
 import { CompilerInput } from 'hardhat/types';
 import path from 'path';
-import { ContractInfo } from '../ethers/Contract';
 import { HashInfo } from '../Hash';
 import {
   TASK_COMPILE_WARP_GET_HASH,
@@ -17,7 +16,14 @@ import {
   TASK_DEPLOY_WARP_GET_CAIRO_PATH,
   TASK_WRITE_CONTRACT_INFO,
 } from '../task-names';
-import { checkHash, compile, getContract, getContractNames, saveContract } from '../utils';
+import {
+  ContractInfo,
+  checkHash,
+  compile,
+  getContract,
+  getContractNames,
+  saveContract,
+} from '../utils';
 
 subtask(TASK_COMPILE_SOLIDITY_RUN_SOLC).setAction(
   async ({ input }: { input: CompilerInput; solcPath: string }) => {
