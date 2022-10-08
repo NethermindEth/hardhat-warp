@@ -1,4 +1,3 @@
-import path from 'path';
 import {
   GatewayError,
   Contract as StarknetContract,
