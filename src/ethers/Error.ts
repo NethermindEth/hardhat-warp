@@ -22,7 +22,6 @@ export class WarpError extends Error {
     const messageRegex = /Error\smessage:\s(.*)\n/;
     const matches = this.message.match(messageRegex);
     if (matches === null) {
-      console.warn(`Could not extract revert reason`);
       return '';
     }
     return matches[1];
