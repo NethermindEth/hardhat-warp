@@ -86,7 +86,7 @@ export class ContractFactory {
     await Promise.all(
       Object.entries(getContractsToDeclare(this.pathToCairoFile)).map(
         async ([name, expected_hash]) => {
-          const factory = await getStarknetContractFactory(
+          const factory = getStarknetContractFactory(
             name,
             this.starknetContractFactory.providerOrAccount,
           );

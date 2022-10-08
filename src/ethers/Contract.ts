@@ -34,7 +34,7 @@ import { abiCoder, decode, decodeEvents, decode_, encode, SolValue } from '../tr
 import { FIELD_PRIME } from 'starknet/dist/constants';
 import { benchmark, normalizeAddress } from '../utils';
 import { WarpSigner } from './Signer';
-import { getDevnetProvider } from '../provider';
+import { getDevnetProvider, getDevnetUrl } from '../provider';
 import { WarpError } from './Error';
 import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
 import { devnet } from '../devnet';
@@ -239,10 +239,11 @@ export class WarpContract extends EthersContract {
     const inv = this.buildInvoke(solName, fragment);
     return async (...args: SolValue[]) => {
       // Ada forgive us
-      await devnet.dump('CALL_ROLLBACK');
+      const port = getDevnetUrl();
+      await devnet.dump(`${port}.CALL_ROLLBACK`);
       const result = (await (await inv(...args)).wait()).cairoResult;
       const output = this.parseResponse(fragment.outputs, result);
-      await devnet.load('CALL_ROLLBACK');
+      await devnet.load(`${port}.CALL_ROLLBACK`);
       return output;
     };
   }
