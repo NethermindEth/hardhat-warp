@@ -2,7 +2,12 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/src/signers';
 import { extendConfig, extendEnvironment } from 'hardhat/config';
 import { ethers } from 'ethers';
 
-import { getDefaultAccount, getDevNetPreloadedAccounts, getDevnetProvider } from '../provider';
+import {
+  getDefaultAccount,
+  getDevnetPort,
+  getDevNetPreloadedAccounts,
+  getDevnetProvider,
+} from '../provider';
 import { WarpSigner } from '../ethers/Signer';
 import { ContractFactory, getStarknetContractFactory } from '../ethers/ContractFactory';
 import { getContract } from '../utils';
@@ -121,13 +126,14 @@ extendEnvironment((hre) => {
 
     return async function load<T>(fixture: Fixture<T>): Promise<T> {
       const snapshot = snapshots.find((p) => p.fixture === fixture);
+      const port = getDevnetPort();
       if (snapshot !== undefined) {
-        await devnet.load('fixture.' + snapshot.id);
+        await devnet.load(`${port}.fixture.${snapshot.id}`);
         return snapshot.data;
       } else {
         const data = await fixture(signers, provider);
         const id = snapshots.length;
-        await devnet.dump('fixture.' + id);
+        await devnet.dump(`${port}.fixture.${id}`);
         snapshots.push({ fixture, data, id, provider, signers });
         return data;
       }

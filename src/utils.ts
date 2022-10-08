@@ -7,6 +7,7 @@ import * as path from 'path';
 import { exec, execSync } from 'child_process';
 import { GetTransactionTraceResponse } from 'starknet/dist/types/api';
 import { globalHRE } from './hardhat/runtime-environment';
+import { getDevnetPort } from './provider';
 
 export class WarpPluginError extends NomicLabsHardhatPluginError {
   constructor(message: string, parent?: Error, shouldBeReported?: boolean) {
@@ -205,8 +206,11 @@ export function benchmark(
   txTrace: GetTransactionTraceResponse,
 ) {
   let benchmarkJSON: Benchmark = {};
+  const port = getDevnetPort();
   try {
-    benchmarkJSON = JSON.parse(fs.readFileSync('benchmark.json', 'utf-8') || '{}') as Benchmark;
+    benchmarkJSON = JSON.parse(
+      fs.readFileSync(`.${port}.benchmark.json`, 'utf-8') || '{}',
+    ) as Benchmark;
   } catch {
     benchmarkJSON = {};
   }
@@ -215,7 +219,7 @@ export function benchmark(
       [functionName]: txTrace?.function_invocation?.execution_resources,
     },
   ]);
-  fs.writeFileSync('benchmark.json', JSON.stringify(benchmarkJSON, null, 2));
+  fs.writeFileSync(`.${port}.benchmark.json`, JSON.stringify(benchmarkJSON, null, 2));
 }
 
 export function getCompiledCairoFile(path: string) {
