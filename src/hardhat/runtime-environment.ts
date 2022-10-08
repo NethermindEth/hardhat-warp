@@ -49,7 +49,8 @@ extendEnvironment((hre) => {
       throw new Error('Factory options on getContractFactory not supported');
     }
     const ethersContractFactory = await getContractFactory(name, signerOrOptions);
-    const starknetContractFactory = await getStarknetContractFactory(name);
+    const defaultAccount = await getDefaultAccount();
+    const starknetContractFactory = await getStarknetContractFactory(name, defaultAccount);
     const contract = getContract(name);
     const cairoFile = contract.getCairoFile().slice(0, -6).concat('.cairo');
     return Promise.resolve(
@@ -57,6 +58,7 @@ extendEnvironment((hre) => {
         starknetContractFactory,
         ethersContractFactory,
         cairoFile,
+        name,
       ) as ethers.ContractFactory,
     );
   };
