@@ -6,6 +6,7 @@ import {
   InvokeTransactionReceiptResponse,
   Event as StarkEvent,
   Account,
+  ContractFactory as StarknetContractFactory,
 } from 'starknet';
 import {
   BigNumberish,
@@ -69,6 +70,7 @@ export class WarpContract extends EthersContract {
 
   constructor(
     private starknetContract: StarknetContract,
+    private starknetContractFactory: StarknetContractFactory,
     private ethersContractFactory: EthersContractFactory,
     private pathToCairoFile: string,
   ) {
@@ -112,14 +114,25 @@ export class WarpContract extends EthersContract {
   // Reconnect to a different signer or provider
   connect(signerOrProvider: Signer | Provider | string): EthersContract {
     const warpSigner = signerOrProvider as WarpSigner;
-    this.starknetContract.connect(warpSigner.starkNetSigner);
-    return this;
+    const connected = new WarpContract(
+      this.starknetContractFactory.attach(this.address),
+      this.starknetContractFactory,
+      this.ethersContractFactory,
+      this.pathToCairoFile,
+    );
+    connected.starknetContract.connect(warpSigner.starkNetSigner);
+    return connected;
   }
 
   // Re-attach to a different on-chain instance of this contract
   attach(addressOrName: string): EthersContract {
-    this.starknetContract.attach(addressOrName);
-    return this;
+    const attached = new WarpContract(
+      this.starknetContractFactory.attach(addressOrName),
+      this.starknetContractFactory,
+      this.ethersContractFactory,
+      this.pathToCairoFile,
+    );
+    return attached;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any

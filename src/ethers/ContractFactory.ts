@@ -1,4 +1,11 @@
-import { Account, Contract, ContractFactory as StarknetContractFactory, json } from 'starknet';
+import {
+  Account,
+  AccountInterface,
+  Contract,
+  ContractFactory as StarknetContractFactory,
+  json,
+  ProviderInterface,
+} from 'starknet';
 import {
   BigNumber,
   BytesLike,
@@ -30,6 +37,7 @@ export class ContractFactory {
     private starknetContractFactory: StarknetContractFactory,
     private ethersContractFactory: EthersContractFactory,
     pathToCairoFile: string,
+    public contractName: string,
   ) {
     this.interface = ethersContractFactory.interface;
     this.bytecode = ethersContractFactory.bytecode;
@@ -78,7 +86,10 @@ export class ContractFactory {
     await Promise.all(
       Object.entries(getContractsToDeclare(this.pathToCairoFile)).map(
         async ([name, expected_hash]) => {
-          const factory = await getStarknetContractFactory(name);
+          const factory = await getStarknetContractFactory(
+            name,
+            this.starknetContractFactory.providerOrAccount,
+          );
 
           const declareResponse =
             await this.starknetContractFactory.providerOrAccount.declareContract({
@@ -148,6 +159,7 @@ export class ContractFactory {
     );
     const contract = new WarpContract(
       starknetContract,
+      this.starknetContractFactory,
       this.ethersContractFactory,
       this.pathToCairoFile,
     );
@@ -158,6 +170,7 @@ export class ContractFactory {
     const starknetContract = this.starknetContractFactory.attach(address);
     const contract = new WarpContract(
       starknetContract,
+      this.starknetContractFactory,
       this.ethersContractFactory,
       this.pathToCairoFile,
     );
@@ -165,9 +178,13 @@ export class ContractFactory {
   }
 
   connect(account: WarpSigner): ContractFactory {
-    this.starknetContractFactory.connect(account.starkNetSigner);
-    this.starknetContractFactory.providerOrAccount = account.starkNetSigner;
-    return this;
+    const connectedFactory = getStarknetContractFactory(this.contractName, account.starkNetSigner);
+    return new ContractFactory(
+      connectedFactory,
+      this.ethersContractFactory,
+      this.pathToCairoFile,
+      this.contractName,
+    );
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
@@ -197,14 +214,11 @@ export class ContractFactory {
   }
 }
 
-export async function getStarknetContractFactory(
+export function getStarknetContractFactory(
   contractName: string,
-): Promise<StarknetContractFactory> {
+  defaultAccount: ProviderInterface | AccountInterface,
+): StarknetContractFactory {
   const contract = getContract(contractName);
   const compiledContract = json.parse(readFileSync(contract.getCompiledJson()).toString('ascii'));
-  return new StarknetContractFactory(
-    compiledContract,
-    await getDefaultAccount(),
-    compiledContract.abi,
-  );
+  return new StarknetContractFactory(compiledContract, defaultAccount, compiledContract.abi);
 }
