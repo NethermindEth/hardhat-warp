@@ -1,4 +1,4 @@
-import { Account, ProviderInterface, RpcProvider, SequencerProvider, ec } from 'starknet';
+import { Account, ProviderInterface, SequencerProvider, ec } from 'starknet';
 import { globalHRE } from './hardhat/runtime-environment';
 import { StarknetDevnetGetAccountsResponse } from './utils';
 

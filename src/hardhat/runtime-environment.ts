@@ -125,7 +125,7 @@ extendEnvironment((hre) => {
       } else {
         const data = await fixture(signers, provider);
         const id = snapshots.length;
-        await hre.devnet.dump('fixture.' + id);
+        await devnet.dump('fixture.' + id);
         snapshots.push({ fixture, data, id, provider, signers });
         return data;
       }

@@ -41,10 +41,6 @@ export async function compile(input: any): Promise<any> {
   return JSON.parse(output);
 }
 
-export function colorLogger(str: string) {
-  console.log(str.blue.bold);
-}
-
 export function checkHash(hash: HashInfo) {
   const hashes = [hash];
   let needToCompile = true;
@@ -200,6 +196,7 @@ export function getContractsToDeclare(path: string): { [name: string]: string } 
   return Object.fromEntries([...matches].map((match) => [match[1], match[2]]));
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Benchmark = { [file: string]: any };
 
 export function benchmark(
