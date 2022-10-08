@@ -55,7 +55,7 @@ extendEnvironment((hre) => {
     }
     const ethersContractFactory = await getContractFactory(name, signerOrOptions);
     const defaultAccount = await getDefaultAccount();
-    const starknetContractFactory = await getStarknetContractFactory(name, defaultAccount);
+    const starknetContractFactory = getStarknetContractFactory(name, defaultAccount);
     const contract = getContract(name);
     const cairoFile = contract.getCairoFile().slice(0, -6).concat('.cairo');
     return Promise.resolve(
@@ -66,6 +66,13 @@ extendEnvironment((hre) => {
         name,
       ) as ethers.ContractFactory,
     );
+  };
+
+  //@ts-ignore
+  hre.ethers.constants = {
+    //@ts-ignore
+    ...hre.ethers.constants,
+    AddressZero: '0x0000000000000000000000000000000000000000000000000000000000000000',
   };
 
   // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat

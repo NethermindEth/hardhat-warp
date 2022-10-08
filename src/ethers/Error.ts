@@ -15,7 +15,7 @@ export class WarpError extends Error {
     this.errorArgs = reason;
     this.errorName = reason;
     this.receipt = { revertString: reason };
-    this.message = 'revert';
+    this.message = `VM Exception while processing transaction: revert ${reason}`;
   }
 
   extractRevertReason(): string {
