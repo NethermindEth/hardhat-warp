@@ -22,7 +22,7 @@ import { abiCoder, encode, SolValue } from '../transcode';
 import { readFileSync } from 'fs';
 import { WarpSigner } from './Signer';
 import { benchmark, getCompiledCairoFile, getContract, getContractsToDeclare } from '../utils';
-import { getDefaultAccount, getDevnetProvider } from '../provider';
+import { getDevnetProvider } from '../provider';
 import { starknetKeccak } from 'starknet/dist/utils/hash';
 import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
 
