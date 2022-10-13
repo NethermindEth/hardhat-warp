@@ -39,7 +39,7 @@ import { WarpError } from './Error';
 import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
 import { devnet } from '../devnet';
 
-const ASSERT_ERROR = 'An ASSERT_EQ instruction failed';
+const ASSERT_ERRORS = ['An ASSERT_EQ instruction failed', 'AssertionError:'];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type CairoContractReceipt = ContractReceipt & { cairoResult: any[] };
@@ -228,7 +228,10 @@ export class WarpContract extends EthersContract {
         const data = sigHash.concat(abiEncodedInputs.substring(2));
         return this.toEtheresTransactionResponse(invokeResponse, data, solName);
       } catch (e) {
-        if (e instanceof GatewayError && e.message.includes(ASSERT_ERROR)) {
+        if (
+          e instanceof GatewayError &&
+          ASSERT_ERRORS.some((err) => (e as GatewayError).message.includes(err))
+        ) {
           throw new WarpError(e.message);
         } else throw e;
       }
