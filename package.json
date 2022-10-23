@@ -1,13 +1,15 @@
 {
-  "name": "hardhat-warp",
+  "name": "@nethermindeth/hardhat-warp",
   "version": "1.0.0",
   "description": "Hardhat plugin for the Warp transpiler",
   "main": "dist/index.js",
-  "author": "Glitch18 <atharvakn@gmail.com>",
-  "license": "MIT",
-  "private": false,
+  "author": "Nethermind",
+  "files": [
+    "dist",
+    "script"
+  ],
   "devDependencies": {
-    "@nethermindeth/warp": "^2.1.1",
+    "@nethermindeth/warp": "^2.3.0",
     "@nomiclabs/hardhat-ethers": "^2.1.1",
     "@shardlabs/starknet-hardhat-plugin": "^0.6.6",
     "@typechain/starknet": "^0.2.3",
@@ -44,7 +46,8 @@
     "build": "tsc",
     "watch": "tsc -w",
     "prepare": "husky install",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "release": "yarn tsc && npm publish --access public"
   },
   "peerDependencies": {
     "hardhat": "^2.0.0"
