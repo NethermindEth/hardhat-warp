@@ -145,6 +145,10 @@ export function nethersolcPath(version: SupportedSolcVersions): string {
   );
 }
 
+export function warpPath(): string {
+  return path.resolve(__dirname, '..', 'node_modules', '@nethermindeth/warp', 'bin', 'warp');
+}
+
 export type StarknetDevnetGetAccountsResponse = {
   address: string;
   initial_balance: number;

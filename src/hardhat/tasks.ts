@@ -1,50 +1,52 @@
+import os from 'os';
+import debug from 'debug';
+import semver from 'semver';
 import * as fs from 'fs';
 import { createHash } from 'crypto';
 import {
   TASK_COMPILE_GET_COMPILATION_TASKS,
-  TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS,
+  TASK_COMPILE_SOLIDITY_COMPILE_JOBS,
+  TASK_COMPILE_SOLIDITY_LOG_NOTHING_TO_COMPILE,
   TASK_COMPILE_SOLIDITY_RUN_SOLC,
 } from 'hardhat/builtin-tasks/task-names';
 import { subtask, types } from 'hardhat/config';
-import { glob } from 'hardhat/internal/util/glob';
-import { CompilerInput } from 'hardhat/types';
-import path from 'path';
+import { CompilationJob, CompilerInput } from 'hardhat/types';
 import { HashInfo } from '../Hash';
-import {
-  TASK_COMPILE_WARP_GET_HASH,
-  TASK_COMPILE_WARP_GET_SOURCE_PATHS,
-  TASK_DEPLOY_WARP_GET_CAIRO_PATH,
-  TASK_WRITE_CONTRACT_INFO,
-} from '../task-names';
-import {
-  ContractInfo,
-  checkHash,
-  compile,
-  getContract,
-  getContractNames,
-  saveContract,
-} from '../utils';
+import { TASK_COMPILE_WARP_GET_HASH } from '../task-names';
+import { ContractInfo, checkHash, compile, warpPath, getContractNames } from '../utils';
+import * as taskTypes from 'hardhat/types/builtin-tasks';
+import { HardhatError } from 'hardhat/internal/core/errors';
+import { ERRORS } from 'hardhat/internal/core/errors-list';
+import { execSync } from 'child_process';
 
-subtask(TASK_COMPILE_SOLIDITY_RUN_SOLC).setAction(
-  async ({ input }: { input: CompilerInput; solcPath: string }) => {
-    const output = await compile(input);
+type ArtifactsEmittedPerFile = Array<{
+  file: taskTypes.ResolvedFile;
+  artifactsEmitted: string[];
+}>;
 
-    return output;
-  },
-);
+type ArtifactsEmittedPerJob = Array<{
+  compilationJob: CompilationJob;
+  artifactsEmittedPerFile: ArtifactsEmittedPerFile;
+}>;
+
+const log = debug('hardhat:core:tasks:compile');
+// TODO check this version
+const COMPILE_TASK_FIRST_SOLC_VERSION_SUPPORTED = '0.8.0';
+
+// // We also run
+// subtask(TASK_COMPILE_SOLIDITY_RUN_SOLC).setAction(
+//   async ({ input }: { input: CompilerInput; solcPath: string }) => {
+//     const output = await compile(input);
+
+//     const pathToWarp = warpPath();
+//     execSync(`${pathToWarp} transpile ${[...Object.keys(input.sources)].join(" ")} --compile-cairo`, {stdio: 'inherit'});(input);
+
+//     return output;
+//   },
+// );
 
 subtask(TASK_COMPILE_GET_COMPILATION_TASKS, async (_, __, runSuper): Promise<string[]> => {
-  return [...(await runSuper()), TASK_WRITE_CONTRACT_INFO];
-});
-
-subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS, (_, { config }): Promise<string[]> => {
-  return glob(path.join(config.paths.root, 'contracts/**/*.sol'));
-});
-
-subtask(TASK_COMPILE_WARP_GET_SOURCE_PATHS, async (_, { config }): Promise<string[]> => {
-  const starknetContracts = await glob(path.join(config.paths.root, 'contracts/**/*.sol'));
-
-  return starknetContracts.map((contract) => path.relative(config.paths.root, contract));
+  return [...(await runSuper()) /*TASK_WRITE_CONTRACT_INFO*/];
 });
 
 subtask(TASK_COMPILE_WARP_GET_HASH)
@@ -57,85 +59,154 @@ subtask(TASK_COMPILE_WARP_GET_HASH)
     return needToCompile;
   });
 
-subtask(TASK_WRITE_CONTRACT_INFO).setAction(async (_, { run }): Promise<void> => {
-  const sourcePathsWarp: string[] = await run(TASK_COMPILE_WARP_GET_SOURCE_PATHS);
+subtask(TASK_COMPILE_SOLIDITY_COMPILE_JOBS).setAction(
+  async (
+    {
+      compilationJobs,
+      quiet,
+      concurrency,
+    }: {
+      compilationJobs: CompilationJob[];
+      quiet: boolean;
+      concurrency: number;
+    },
+    { run },
+  ): Promise<{ artifactsEmittedPerJob: ArtifactsEmittedPerJob }> => {
+    if (compilationJobs.length === 0) {
+      log(`No compilation jobs to compile`);
+      await run(TASK_COMPILE_SOLIDITY_LOG_NOTHING_TO_COMPILE, { quiet });
+      return { artifactsEmittedPerJob: [] };
+    }
 
-  for (const sourcepath of sourcePathsWarp) {
-    const contractNames = await getContractNames(sourcepath);
-    contractNames.map((contractName) => {
-      const contractObj = new ContractInfo(contractName, sourcepath);
-      saveContract(contractObj);
-    });
-  }
-});
+    log(`Compiling ${compilationJobs.length} jobs`);
 
-// subtask(TASK_COMPILE_WARP_RUN_BINARY)
-//   .addParam(
-//     "contract",
-//     "Path to Solidity contract",
-//     undefined,
-//     types.string,
-//     false
-//   )
-//   .addParam("warpPath", "Path to warp binary", undefined, types.string, false)
+    const versionList: string[] = [];
+    for (const job of compilationJobs) {
+      const solcVersion = job.getSolcConfig().version;
+
+      if (!versionList.includes(solcVersion)) {
+        // versions older than 0.4.11 don't work with hardhat
+        // see issue https://github.com/nomiclabs/hardhat/issues/2004
+        if (semver.lt(solcVersion, COMPILE_TASK_FIRST_SOLC_VERSION_SUPPORTED)) {
+          throw new HardhatError(ERRORS.BUILTIN_TASKS.COMPILE_TASK_UNSUPPORTED_SOLC_VERSION, {
+            version: solcVersion,
+            firstSupportedVersion: COMPILE_TASK_FIRST_SOLC_VERSION_SUPPORTED,
+          });
+        }
+
+        versionList.push(solcVersion);
+      }
+    }
+
+    try {
+      const files = new Set<string>();
+      const artifactsEmittedPerJob: ArtifactsEmittedPerJob = [];
+      for (const compilationJob of compilationJobs) {
+        const artifactsEmittedPerFile: ArtifactsEmittedPerFile = [];
+        for (const rf of compilationJob.getResolvedFiles()) {
+          artifactsEmittedPerFile.push({
+            file: rf,
+            artifactsEmitted: await getContractNames(rf.absolutePath),
+          });
+          files.add(rf.absolutePath);
+        }
+        artifactsEmittedPerJob.push({ compilationJob, artifactsEmittedPerFile });
+      }
+
+      const pathToWarp = warpPath();
+      execSync(`${pathToWarp} transpile ${[...files].join(' ')} --compile-cairo`, {
+        stdio: 'inherit',
+      });
+      return { artifactsEmittedPerJob };
+    } catch (e) {
+      if (!(e instanceof AggregateError)) {
+        throw e;
+      }
+
+      for (const error of e.errors) {
+        if (!HardhatError.isHardhatErrorType(error, ERRORS.BUILTIN_TASKS.COMPILE_FAILURE)) {
+          throw error;
+        }
+      }
+
+      // error is an aggregate error, and all errors are compilation failures
+      throw new HardhatError(ERRORS.BUILTIN_TASKS.COMPILE_FAILURE);
+    }
+  },
+);
+
+// /**
+//  * This is an orchestrator task that uses other subtasks to compile a
+//  * compilation job.
+//  */
+// subtask(TASK_COMPILE_SOLIDITY_COMPILE_JOB)
+//   .addParam("compilationJob", undefined, undefined, types.any)
+//   .addParam("compilationJobs", undefined, undefined, types.any)
+//   .addParam("compilationJobIndex", undefined, undefined, types.int)
+//   .addParam("quiet", undefined, undefined, types.boolean)
+//   .addOptionalParam("emitsArtifacts", undefined, true, types.boolean)
 //   .setAction(
-//     async ({
-//       contract,
-//       warpPath,
-//     }: {
-//       contract: string;
-//       warpPath: string;
-//     }): Promise<void> => {
-//       const transpiler = new Transpiler(warpPath);
-//       transpiler.transpile(contract);
-//       const contractNames = await getContractNames(contract);
-//       contractNames.map((contractName) => {
-//         const contractObj = new ContractInfo(contractName, contract);
-//         saveContract(contractObj);
+//     async (
+//       {
+//         compilationJob,
+//         compilationJobs,
+//         compilationJobIndex,
+//         quiet,
+//         emitsArtifacts,
+//       }: {
+//         compilationJob: CompilationJob;
+//         compilationJobs: CompilationJob[];
+//         compilationJobIndex: number;
+//         quiet: boolean;
+//         emitsArtifacts: boolean;
+//       },
+//       { run }
+//     ): Promise<{
+//       artifactsEmittedPerFile: ArtifactsEmittedPerFile;
+//       compilationJob: taskTypes.CompilationJob;
+//       input: CompilerInput;
+//       output: CompilerOutput;
+//       solcBuild: any;
+//     }> => {
+//       log(
+//         `Compiling job with version '${compilationJob.getSolcConfig().version}'`
+//       );
+//       const input: CompilerInput = await run(
+//         TASK_COMPILE_SOLIDITY_GET_COMPILER_INPUT,
+//         {
+//           compilationJob,
+//         }
+//       );
+
+//       const { output, solcBuild } = await run(TASK_COMPILE_SOLIDITY_COMPILE, {
+//         solcVersion: compilationJob.getSolcConfig().version,
+//         input,
+//         quiet,
+//         compilationJob,
+//         compilationJobs,
+//         compilationJobIndex,
 //       });
+
+//       await run(TASK_COMPILE_SOLIDITY_CHECK_ERRORS, { output, quiet });
+
+//       let artifactsEmittedPerFile = [];
+//       if (emitsArtifacts) {
+//         artifactsEmittedPerFile = (
+//           await run(TASK_COMPILE_SOLIDITY_EMIT_ARTIFACTS, {
+//             compilationJob,
+//             input,
+//             output,
+//             solcBuild,
+//           })
+//         ).artifactsEmittedPerFile;
+//       }
+
+//       return {
+//         artifactsEmittedPerFile,
+//         compilationJob,
+//         input,
+//         output,
+//         solcBuild,
+//       };
 //     }
 //   );
-
-// subtask(TASK_COMPILE_WARP)
-//     .setAction(
-//         async (_, {run}) => {
-//           await run(TASK_COMPILE_WARP_PRINT_STARKNET_PROMPT);
-
-//           const warpPath: string = await run(
-//               TASK_COMPILE_WARP_GET_WARP_PATH,
-//           );
-
-//           const sourcePathsWarp: string[] = await run(
-//               TASK_COMPILE_WARP_GET_SOURCE_PATHS,
-//           );
-
-//           const results = await Promise.all(sourcePathsWarp.map(async (source) => {
-//             return await run(
-//                 TASK_COMPILE_WARP_GET_HASH,
-//                 {
-//                   contract: source,
-//                 },
-//             );
-//           }));
-
-//           sourcePathsWarp.forEach(async (source, i) => {
-//             if (results[i]) {
-//               await run(
-//                   TASK_COMPILE_WARP_RUN_BINARY,
-//                   {
-//                     contract: source,
-//                     warpPath: warpPath,
-//                   },
-//               );
-//             }
-//           });
-//         },
-//     );
-
-subtask(TASK_DEPLOY_WARP_GET_CAIRO_PATH)
-  .addParam('contractName', 'Name of the contract to deploy', undefined, types.string, false)
-  .setAction(async ({ contractName }: { contractName: string }) => {
-    const contract = getContract(contractName);
-    // TODO: catch exception
-    return contract.getCairoFile();
-  });
