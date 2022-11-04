@@ -14,6 +14,7 @@ import { getContract } from '../utils';
 import '../type-extensions';
 import { devnet } from '../devnet';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
+import { Artifacts } from './artifacts';
 
 export let globalHRE: HardhatRuntimeEnvironment;
 
@@ -155,4 +156,7 @@ extendEnvironment((hre) => {
   };
 
   hre.devnet = devnet;
+
+  // @ts-ignore readonly property
+  hre.artifacts = new Artifacts(hre.config.paths.artifacts);
 });
