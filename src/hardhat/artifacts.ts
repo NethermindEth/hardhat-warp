@@ -63,6 +63,18 @@ export class Artifacts implements IArtifacts {
     };
   }
 
+  public async getArtifactAbi(name: string): Promise<any> {
+    const artifactPath = await this._getArtifactPath(name);
+    // This is pure laziness and needs to be made more reliable in the long term
+    const abiPath = artifactPath.replace(/_compiled\.json$/, '_sol_abi.json');
+    return fsExtra.readJson(abiPath);
+  }
+
+  public async getArtifact(name: string): Promise<any> {
+    const artifactPath = this._getArtifactPathSync(name);
+    return fsExtra.readJsonSync(artifactPath);
+  }
+
   public async artifactExists(name: string): Promise<boolean> {
     try {
       await this.readArtifact(name);

@@ -6,13 +6,7 @@ import {
   json,
   ProviderInterface,
 } from 'starknet';
-import {
-  BigNumber,
-  BytesLike,
-  ContractFactory as EthersContractFactory,
-  Signer,
-  Contract as EthersContract,
-} from 'ethers';
+import { BigNumber, BytesLike, Signer, Contract as EthersContract } from 'ethers';
 import { Interface } from '@ethersproject/abi';
 import { id as keccak } from '@ethersproject/hash';
 import { TransactionRequest } from '@ethersproject/abstract-provider';
@@ -28,21 +22,19 @@ import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
 
 export class ContractFactory {
   readonly interface: Interface;
-  readonly bytecode: string;
-  readonly signer: Signer;
+  readonly bytecode: string = '';
   pathToCairoFile: string;
   private sequencerProvider = getDevnetProvider();
 
   constructor(
     private starknetContractFactory: StarknetContractFactory,
-    private ethersContractFactory: EthersContractFactory,
+    ifc: Interface,
+    public signer: Signer,
     pathToCairoFile: string,
     public contractName: string,
   ) {
-    this.interface = ethersContractFactory.interface;
-    this.bytecode = ethersContractFactory.bytecode;
-    this.signer = ethersContractFactory.signer; // Todo use starknet signers if possible
     this.pathToCairoFile = pathToCairoFile;
+    this.interface = ifc;
 
     const compiledCairo = JSON.parse(
       readFileSync(getCompiledCairoFile(this.pathToCairoFile), 'utf-8'),
@@ -61,13 +53,11 @@ export class ContractFactory {
       snTopicToName[e.topic] = e.name;
     });
 
-    Object.entries(this.ethersContractFactory.interface.events).forEach(
-      ([eventName, eventFragment]) => {
-        const selector = keccak(eventFragment.format('sighash'));
-        const warpTopic = `${eventName.split('(')[0]}_${selector.slice(2).slice(0, 8)}`;
-        ethTopicToEvent[warpTopic] = [eventFragment, selector];
-      },
-    );
+    Object.entries(this.interface.events).forEach(([eventName, eventFragment]) => {
+      const selector = keccak(eventFragment.format('sighash'));
+      const warpTopic = `${eventName.split('(')[0]}_${selector.slice(2).slice(0, 8)}`;
+      ethTopicToEvent[warpTopic] = [eventFragment, selector];
+    });
 
     // @ts-ignore
     this.interface._abiCoder = abiCoder;
@@ -76,10 +66,7 @@ export class ContractFactory {
   // @TODO: Future; rename to populateTransaction?
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getDeployTransaction(...args: Array<any>): TransactionRequest {
-    console.warn(
-      'getDeployTransaction not implemented for Starknet: using the Eth transaction instead',
-    );
-    return this.ethersContractFactory.getDeployTransaction(...args);
+    throw new Error('Not implemented yet');
   }
 
   async deploy(...args: Array<SolValue>): Promise<EthersContract> {
@@ -160,7 +147,8 @@ export class ContractFactory {
     const contract = new WarpContract(
       starknetContract,
       this.starknetContractFactory,
-      this.ethersContractFactory,
+      this.signer,
+      this.interface,
       this.pathToCairoFile,
     );
     return contract;
@@ -171,7 +159,8 @@ export class ContractFactory {
     const contract = new WarpContract(
       starknetContract,
       this.starknetContractFactory,
-      this.ethersContractFactory,
+      this.signer,
+      this.interface,
       this.pathToCairoFile,
     );
     return contract;
@@ -181,7 +170,8 @@ export class ContractFactory {
     const connectedFactory = getStarknetContractFactory(this.contractName, account.starkNetSigner);
     return new ContractFactory(
       connectedFactory,
-      this.ethersContractFactory,
+      this.interface,
+      account,
       this.pathToCairoFile,
       this.contractName,
     );

@@ -1,6 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/src/signers';
 import { extendConfig, extendEnvironment } from 'hardhat/config';
 import { ethers } from 'ethers';
+import { ContractFactory as StarkNetContractFactory } from 'starknet';
 
 import {
   getDefaultAccount,
@@ -15,6 +16,7 @@ import '../type-extensions';
 import { devnet } from '../devnet';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { Artifacts } from './artifacts';
+import { Interface } from 'ethers/lib/utils';
 
 export let globalHRE: HardhatRuntimeEnvironment;
 
@@ -42,8 +44,6 @@ extendConfig((config) => {
 
 extendEnvironment((hre) => {
   globalHRE = hre;
-  // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
-  const getContractFactory = hre.ethers.getContractFactory;
 
   // @ts-ignore we don't support some of the overloads of getContractFactory
   hre.ethers.getContractFactory = async (name: string, signerOrOptions?: ethers.Signer) => {
@@ -54,15 +54,21 @@ extendEnvironment((hre) => {
     } else {
       throw new Error('Factory options on getContractFactory not supported');
     }
-    const ethersContractFactory = await getContractFactory(name, signerOrOptions);
-    const defaultAccount = await getDefaultAccount();
-    const starknetContractFactory = getStarknetContractFactory(name, defaultAccount);
+
+    const solidityAbi = await (hre.artifacts as Artifacts).getArtifactAbi(name);
+    const artifact = await (hre.artifacts as Artifacts).getArtifact(name);
+    const starknetContractFactory = new StarkNetContractFactory(
+      artifact,
+      (signerOrOptions as WarpSigner).starkNetSigner,
+      artifact.abi,
+    );
     const contract = getContract(name);
     const cairoFile = contract.getCairoFile().slice(0, -6).concat('.cairo');
     return Promise.resolve(
       new ContractFactory(
         starknetContractFactory,
-        ethersContractFactory,
+        new Interface(solidityAbi),
+        signerOrOptions,
         cairoFile,
         name,
       ) as ethers.ContractFactory,

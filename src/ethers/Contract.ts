@@ -19,7 +19,7 @@ import {
   ContractTransaction,
   ContractReceipt,
 } from '../../node_modules/ethers';
-import { FunctionFragment, Indexed, ParamType } from 'ethers/lib/utils';
+import { FunctionFragment, Indexed, Interface, ParamType } from 'ethers/lib/utils';
 import {
   BlockTag,
   EventFilter,
@@ -61,6 +61,7 @@ export class WarpContract extends EthersContract {
   readonly resolvedAddress: Promise<string>;
 
   private sequencerProvider = getDevnetProvider();
+  public interface: Interface;
 
   public ignoredTopics = new Set([
     // Event topic for fee invocation, done by StarkNet
@@ -70,14 +71,12 @@ export class WarpContract extends EthersContract {
   constructor(
     private starknetContract: StarknetContract,
     private starknetContractFactory: StarknetContractFactory,
-    private ethersContractFactory: EthersContractFactory,
+    public signer: Signer,
+    ifc: Interface,
     private pathToCairoFile: string,
   ) {
-    super(
-      normalizeAddress(starknetContract.address),
-      ethersContractFactory.interface,
-      ethersContractFactory.signer,
-    );
+    super(normalizeAddress(starknetContract.address), ifc, signer);
+    this.interface = ifc;
     this.functions = starknetContract.functions;
     this.callStatic = starknetContract.callStatic;
     this.estimateGas = starknetContract.estimateGas;
@@ -116,7 +115,8 @@ export class WarpContract extends EthersContract {
     const connected = new WarpContract(
       this.starknetContractFactory.attach(this.address),
       this.starknetContractFactory,
-      this.ethersContractFactory,
+      this.signerOrProvider,
+      this.interface,
       this.pathToCairoFile,
     );
     connected.starknetContract.connect(warpSigner.starkNetSigner);
@@ -128,7 +128,8 @@ export class WarpContract extends EthersContract {
     const attached = new WarpContract(
       this.starknetContractFactory.attach(addressOrName),
       this.starknetContractFactory,
-      this.ethersContractFactory,
+      this.signer,
+      this.interface,
       this.pathToCairoFile,
     );
     return attached;
