@@ -19,6 +19,7 @@ import { benchmark, getCompiledCairoFile, getContract, getContractsToDeclare } f
 import { getDevnetProvider } from '../provider';
 import { starknetKeccak } from 'starknet/dist/utils/hash';
 import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
+import { globalHRE } from '../hardhat/runtime-environment';
 
 export class ContractFactory {
   readonly interface: Interface;
@@ -36,9 +37,7 @@ export class ContractFactory {
     this.pathToCairoFile = pathToCairoFile;
     this.interface = ifc;
 
-    const compiledCairo = JSON.parse(
-      readFileSync(getCompiledCairoFile(this.pathToCairoFile), 'utf-8'),
-    );
+    const compiledCairo = JSON.parse(readFileSync(this.pathToCairoFile, 'utf-8'));
     let eventsJson = compiledCairo?.abi?.filter(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (data: { [key: string]: any }) => data?.type === 'event',
@@ -73,7 +72,8 @@ export class ContractFactory {
     await Promise.all(
       Object.entries(getContractsToDeclare(this.pathToCairoFile)).map(
         async ([name, expected_hash]) => {
-          const factory = getStarknetContractFactory(
+          // @ts-ignore Types are borked. Doesn't get ethers is a member
+          const factory = globalHRE.ethers.getContractFactory(
             name,
             this.starknetContractFactory.providerOrAccount,
           );
@@ -167,7 +167,11 @@ export class ContractFactory {
   }
 
   connect(account: WarpSigner): ContractFactory {
-    const connectedFactory = getStarknetContractFactory(this.contractName, account.starkNetSigner);
+    // @ts-ignore Types are borked. Doesn't get ethers is a member
+    const connectedFactory = globalHRE.ethers.getContractFactory(
+      this.contractName,
+      account.starkNetSigner,
+    );
     return new ContractFactory(
       connectedFactory,
       this.interface,
@@ -202,13 +206,4 @@ export class ContractFactory {
   ): EthersContract {
     throw new Error('getContract not supported');
   }
-}
-
-export function getStarknetContractFactory(
-  contractName: string,
-  defaultAccount: ProviderInterface | AccountInterface,
-): StarknetContractFactory {
-  const contract = getContract(contractName);
-  const compiledContract = json.parse(readFileSync(contract.getCompiledJson()).toString('ascii'));
-  return new StarknetContractFactory(compiledContract, defaultAccount, compiledContract.abi);
 }

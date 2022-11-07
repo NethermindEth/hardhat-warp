@@ -34,7 +34,7 @@ export class Artifacts implements IArtifacts {
   }
 
   public async readArtifact(name: string): Promise<Artifact> {
-    const artifactPath = await this._getArtifactPath(name);
+    const artifactPath = await this.getArtifactPath(name);
     const compiledArtifact = await fsExtra.readJson(artifactPath);
     return {
       _format: "I don't know what this is",
@@ -64,7 +64,7 @@ export class Artifacts implements IArtifacts {
   }
 
   public async getArtifactAbi(name: string): Promise<any> {
-    const artifactPath = await this._getArtifactPath(name);
+    const artifactPath = await this.getArtifactPath(name);
     // This is pure laziness and needs to be made more reliable in the long term
     const abiPath = artifactPath.replace(/_compiled\.json$/, '_sol_abi.json');
     return fsExtra.readJson(abiPath);
@@ -169,7 +169,7 @@ export class Artifacts implements IArtifacts {
    * artifact that matches the given name is searched in the existing artifacts.
    * If there is an ambiguity, an error is thrown.
    */
-  private async _getArtifactPath(name: string): Promise<string> {
+  public async getArtifactPath(name: string): Promise<string> {
     if (isFullyQualifiedName(name)) {
       return this._getValidArtifactPathFromFullyQualifiedName(name);
     }

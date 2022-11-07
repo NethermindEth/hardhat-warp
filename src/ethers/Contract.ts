@@ -10,7 +10,6 @@ import {
 import {
   BigNumberish,
   Contract as EthersContract,
-  ContractFactory as EthersContractFactory,
   ContractFunction,
   PopulatedTransaction,
   Signer,
@@ -225,7 +224,7 @@ export class WarpContract extends EthersContract {
           //   maxFee: process.env.STARKNET_PROVIDER_BASE_URL ? undefined : (2n ** 250n).toString(),
           // },
         );
-        const sigHash = this.ethersContractFactory.interface.getSighash(fragment);
+        const sigHash = this.interface.getSighash(fragment);
         const data = sigHash.concat(abiEncodedInputs.substring(2));
         return this.toEtheresTransactionResponse(invokeResponse, data, solName);
       } catch (e) {

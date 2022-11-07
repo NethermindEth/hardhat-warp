@@ -10,8 +10,7 @@ import {
   getDevnetProvider,
 } from '../provider';
 import { WarpSigner } from '../ethers/Signer';
-import { ContractFactory, getStarknetContractFactory } from '../ethers/ContractFactory';
-import { getContract } from '../utils';
+import { ContractFactory } from '../ethers/ContractFactory';
 import '../type-extensions';
 import { devnet } from '../devnet';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
@@ -57,13 +56,12 @@ extendEnvironment((hre) => {
 
     const solidityAbi = await (hre.artifacts as Artifacts).getArtifactAbi(name);
     const artifact = await (hre.artifacts as Artifacts).getArtifact(name);
+    const cairoFile = await (hre.artifacts as Artifacts).getArtifactPath(name);
     const starknetContractFactory = new StarkNetContractFactory(
       artifact,
       (signerOrOptions as WarpSigner).starkNetSigner,
       artifact.abi,
     );
-    const contract = getContract(name);
-    const cairoFile = contract.getCairoFile().slice(0, -6).concat('.cairo');
     return Promise.resolve(
       new ContractFactory(
         starknetContractFactory,
