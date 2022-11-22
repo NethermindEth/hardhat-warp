@@ -1,11 +1,4 @@
-import {
-  Account,
-  AccountInterface,
-  Contract,
-  ContractFactory as StarknetContractFactory,
-  json,
-  ProviderInterface,
-} from 'starknet';
+import { Account, Contract, ContractFactory as StarknetContractFactory } from 'starknet';
 import { BigNumber, BytesLike, Signer, Contract as EthersContract } from 'ethers';
 import { Interface } from '@ethersproject/abi';
 import { id as keccak } from '@ethersproject/hash';
@@ -15,7 +8,7 @@ import { WarpContract } from './Contract';
 import { abiCoder, encode, SolValue } from '../transcode';
 import { readFileSync } from 'fs';
 import { WarpSigner } from './Signer';
-import { benchmark, getCompiledCairoFile, getContract, getContractsToDeclare } from '../utils';
+import { benchmark, getContractsToDeclare } from '../utils';
 import { getDevnetProvider } from '../provider';
 import { starknetKeccak } from 'starknet/dist/utils/hash';
 import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
@@ -63,7 +56,7 @@ export class ContractFactory {
   }
 
   // @TODO: Future; rename to populateTransaction?
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
   getDeployTransaction(...args: Array<any>): TransactionRequest {
     throw new Error('Not implemented yet');
   }
@@ -99,7 +92,7 @@ export class ContractFactory {
           const txTrace = await this.sequencerProvider.getTransactionTrace(
             declareResponse.transaction_hash,
           );
-          benchmark(getContract(name).getCairoFile(), 'DECLARE', txTrace);
+          benchmark(this.pathToCairoFile, 'DECLARE', txTrace);
         },
       ),
     );

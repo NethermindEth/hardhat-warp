@@ -1,9 +1,6 @@
-import os from 'os';
 import path from 'path';
 import debug from 'debug';
 import semver from 'semver';
-import * as fs from 'fs';
-import { createHash } from 'crypto';
 import {
   TASK_COMPILE_GET_COMPILATION_TASKS,
   TASK_COMPILE_SOLIDITY,
@@ -17,19 +14,15 @@ import {
   TASK_COMPILE_SOLIDITY_LOG_COMPILATION_RESULT,
   TASK_COMPILE_SOLIDITY_LOG_NOTHING_TO_COMPILE,
   TASK_COMPILE_SOLIDITY_MERGE_COMPILATION_JOBS,
-  TASK_COMPILE_SOLIDITY_RUN_SOLC,
 } from 'hardhat/builtin-tasks/task-names';
-import { subtask, types } from 'hardhat/config';
+import { subtask } from 'hardhat/config';
 import {
   Artifacts,
   CompilationJob,
   CompilationJobsCreationResult,
-  CompilerInput,
   ResolvedFile,
 } from 'hardhat/types';
-import { HashInfo } from '../Hash';
-import { TASK_COMPILE_WARP_GET_HASH } from '../task-names';
-import { ContractInfo, checkHash, compile, warpPath, getContractNames } from '../utils';
+import { warpPath, getContractNames } from '../utils';
 import * as taskTypes from 'hardhat/types/builtin-tasks';
 import { HardhatError } from 'hardhat/internal/core/errors';
 import { ERRORS } from 'hardhat/internal/core/errors-list';
@@ -41,6 +34,9 @@ import { Artifacts as ArtifactsImpl } from 'hardhat/internal/artifacts';
 
 import { execSync } from 'child_process';
 import { getFullyQualifiedName } from 'hardhat/utils/contract-names';
+import { TASK_TYPECHAIN_GENERATE_TYPES } from '@typechain/hardhat/dist/constants';
+import { PublicConfig } from 'typechain';
+import { copyFileSync, rmSync } from 'fs';
 
 type ArtifactsEmittedPerFile = Array<{
   file: taskTypes.ResolvedFile;
@@ -53,34 +49,11 @@ type ArtifactsEmittedPerJob = Array<{
 }>;
 
 const log = debug('hardhat:core:tasks:compile');
-// TODO check this version
 const COMPILE_TASK_FIRST_SOLC_VERSION_SUPPORTED = '0.8.0';
-
-// // We also run
-// subtask(TASK_COMPILE_SOLIDITY_RUN_SOLC).setAction(
-//   async ({ input }: { input: CompilerInput; solcPath: string }) => {
-//     const output = await compile(input);
-
-//     const pathToWarp = warpPath();
-//     execSync(`${pathToWarp} transpile ${[...Object.keys(input.sources)].join(" ")} --compile-cairo`, {stdio: 'inherit'});(input);
-
-//     return output;
-//   },
-// );
 
 subtask(TASK_COMPILE_GET_COMPILATION_TASKS, async (_, __, runSuper): Promise<string[]> => {
   return [...(await runSuper()) /*TASK_WRITE_CONTRACT_INFO*/];
 });
-
-subtask(TASK_COMPILE_WARP_GET_HASH)
-  .addParam('contract', 'Path to Solidity contract', undefined, types.string, false)
-  .setAction(async ({ contract }: { contract: string }): Promise<boolean> => {
-    const readContract = fs.readFileSync(contract, 'utf-8');
-    const hash = createHash('sha256').update(readContract).digest('hex');
-    const hashObj = new HashInfo(contract, hash);
-    const needToCompile = checkHash(hashObj);
-    return needToCompile;
-  });
 
 // We do the transpilation of the files in this step to avoid redundant
 // retranspilation in TASK_COMPILE_SOLIDITY_RUN_SOLC
@@ -89,11 +62,9 @@ subtask(TASK_COMPILE_SOLIDITY_COMPILE_JOBS).setAction(
     {
       compilationJobs,
       quiet,
-      concurrency,
     }: {
       compilationJobs: CompilationJob[];
       quiet: boolean;
-      concurrency: number;
     },
     { config, run },
   ): Promise<{ artifactsEmittedPerJob: ArtifactsEmittedPerJob }> => {
@@ -104,8 +75,6 @@ subtask(TASK_COMPILE_SOLIDITY_COMPILE_JOBS).setAction(
     }
 
     log(`Compiling ${compilationJobs.length} jobs`);
-
-    const { default: pMap } = await import('p-map');
 
     const versionList: string[] = [];
     for (const job of compilationJobs) {
@@ -125,52 +94,45 @@ subtask(TASK_COMPILE_SOLIDITY_COMPILE_JOBS).setAction(
       }
     }
 
-    const pMapOptions = { concurrency: os.cpus().length, stopOnError: false };
-    try {
-      let files = new Set<string>();
-      let artifactsEmittedPerJob: ArtifactsEmittedPerJob = [];
-      const basePath = path.resolve('./');
-      for (const compilationJob of compilationJobs) {
-        const artifactsEmittedPerFile: ArtifactsEmittedPerFile = [];
-        for (const rf of compilationJob.getResolvedFiles()) {
-          artifactsEmittedPerFile.push({
-            file: rf,
-            artifactsEmitted: await getContractNames(rf.absolutePath),
-          });
-          // TEMP fix while warp is fixing it's support for resolved file paths
-          if (rf.absolutePath.startsWith(basePath)) {
-            files.add(rf.absolutePath.slice(basePath.length + 1));
-          } else {
-            throw new Error('path outside of project');
-          }
-        }
-        artifactsEmittedPerJob.push({ compilationJob, artifactsEmittedPerFile });
-      }
-
-      const pathToWarp = warpPath();
-      execSync(
-        `${pathToWarp} transpile --base-path . --include-paths node_modules --compile-cairo -o ${
-          config.paths.artifacts
-        } ${[...files].join(' ')}`,
-        { stdio: 'inherit' },
-      );
-      return { artifactsEmittedPerJob };
-    } catch (e) {
-      if (!(e instanceof AggregateError)) {
-        throw e;
-      }
-
-      for (const error of e.errors) {
-        if (!HardhatError.isHardhatErrorType(error, ERRORS.BUILTIN_TASKS.COMPILE_FAILURE)) {
-          throw error;
+    const files = new Set<string>();
+    const artifactsEmittedPerJob: ArtifactsEmittedPerJob = [];
+    const basePath = path.resolve('./');
+    for (const compilationJob of compilationJobs) {
+      const artifactsEmittedPerFile: ArtifactsEmittedPerFile = [];
+      for (const rf of compilationJob.getResolvedFiles()) {
+        artifactsEmittedPerFile.push({
+          file: rf,
+          artifactsEmitted: await getContractNames(rf.absolutePath),
+        });
+        // TEMP fix while warp is fixing it's support for resolved file paths
+        if (rf.absolutePath.startsWith(basePath)) {
+          files.add(rf.absolutePath.slice(basePath.length + 1));
+        } else {
+          throw new Error('path outside of project');
         }
       }
-
-      // error is an aggregate error, and all errors are compilation failures
-      throw new HardhatError(ERRORS.BUILTIN_TASKS.COMPILE_FAILURE);
+      artifactsEmittedPerJob.push({ compilationJob, artifactsEmittedPerFile });
     }
+
+    const pathToWarp = warpPath();
+    execSync(
+      `${pathToWarp} transpile --base-path . --include-paths node_modules --compile-cairo -o ${
+        config.paths.artifacts
+      } ${[...files].join(' ')}`,
+      { stdio: 'inherit' },
+    );
+    return { artifactsEmittedPerJob };
   },
 );
+
+subtask(
+  TASK_COMPILE_SOLIDITY_COMPILE_JOBS,
+  'Compiles the entire project, building all artifacts',
+).setAction(async (taskArgs, { run }, runSuper) => {
+  const compileSolOutput = await runSuper(taskArgs);
+  await run(TASK_TYPECHAIN_GENERATE_TYPES, { compileSolOutput, quiet: taskArgs.quiet });
+  return compileSolOutput;
+});
 
 /**
  * Main task for compiling the solidity files in the project.
@@ -299,78 +261,118 @@ async function invalidateCacheMissingArtifacts(
   return solidityFilesCache;
 }
 
-// /**
-//  * This is an orchestrator task that uses other subtasks to compile a
-//  * compilation job.
-//  */
-// subtask(TASK_COMPILE_SOLIDITY_COMPILE_JOB)
-//   .addParam("compilationJob", undefined, undefined, types.any)
-//   .addParam("compilationJobs", undefined, undefined, types.any)
-//   .addParam("compilationJobIndex", undefined, undefined, types.int)
-//   .addParam("quiet", undefined, undefined, types.boolean)
-//   .addOptionalParam("emitsArtifacts", undefined, true, types.boolean)
-//   .setAction(
-//     async (
-//       {
-//         compilationJob,
-//         compilationJobs,
-//         compilationJobIndex,
-//         quiet,
-//         emitsArtifacts,
-//       }: {
-//         compilationJob: CompilationJob;
-//         compilationJobs: CompilationJob[];
-//         compilationJobIndex: number;
-//         quiet: boolean;
-//         emitsArtifacts: boolean;
-//       },
-//       { run }
-//     ): Promise<{
-//       artifactsEmittedPerFile: ArtifactsEmittedPerFile;
-//       compilationJob: taskTypes.CompilationJob;
-//       input: CompilerInput;
-//       output: CompilerOutput;
-//       solcBuild: any;
-//     }> => {
-//       log(
-//         `Compiling job with version '${compilationJob.getSolcConfig().version}'`
-//       );
-//       const input: CompilerInput = await run(
-//         TASK_COMPILE_SOLIDITY_GET_COMPILER_INPUT,
-//         {
-//           compilationJob,
-//         }
-//       );
+subtask(TASK_TYPECHAIN_GENERATE_TYPES).setAction(
+  async ({ compileSolOutput, quiet }, { config, artifacts }) => {
+    const artifactFQNs: string[] = getFQNamesFromCompilationOutput(compileSolOutput);
+    const artifactPaths = Array.from(
+      new Set(
+        artifactFQNs.map((fqn) =>
+          artifacts
+            .formArtifactPathFromFullyQualifiedName(fqn)
+            .replace(/_compiled\.json$/, '_sol_abi.json'),
+        ),
+      ),
+    );
 
-//       const { output, solcBuild } = await run(TASK_COMPILE_SOLIDITY_COMPILE, {
-//         solcVersion: compilationJob.getSolcConfig().version,
-//         input,
-//         quiet,
-//         compilationJob,
-//         compilationJobs,
-//         compilationJobIndex,
-//       });
+    // We don'st support using the taskArgsStore because we can't access it
+    // if (typechain.taskArgsStore.noTypechain) {
+    //   return compileSolOutput
+    // }
 
-//       await run(TASK_COMPILE_SOLIDITY_CHECK_ERRORS, { output, quiet });
+    // RUN TYPECHAIN TASK
+    // @ts-ignore funky types cause we're not using normal imports here
+    const typechainCfg = config.typechain;
+    // We don't support the fullRebuild option because we can't access taskArgsStore
+    if (artifactPaths.length === 0 && !typechainCfg.externalArtifacts) {
+      if (!quiet) {
+        // eslint-disable-next-line no-console
+        console.log('No need to generate any newer typings.');
+      }
 
-//       let artifactsEmittedPerFile = [];
-//       if (emitsArtifacts) {
-//         artifactsEmittedPerFile = (
-//           await run(TASK_COMPILE_SOLIDITY_EMIT_ARTIFACTS, {
-//             compilationJob,
-//             input,
-//             output,
-//             solcBuild,
-//           })
-//         ).artifactsEmittedPerFile;
-//       }
+      return compileSolOutput;
+    }
 
-//       return {
-//         artifactsEmittedPerFile,
-//         compilationJob,
-//         input,
-//         output,
-//         solcBuild,
-//       };
-//     }
-//   );
+    // incremental generation is only supported in 'ethers-v5'
+    // @todo: probably targets should specify somehow if then support incremental generation this won't work with custom targets
+    // We don't support the fullRebuild option because we can't access taskArgsStore
+    const needsFullRebuild =
+      /*typechain.taskArgsStore.fullRebuild || */ typechainCfg.target !== 'ethers-v5';
+    if (!quiet) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `Generating typings for: ${artifactPaths.length} artifacts in dir: ${typechainCfg.outDir} for target: ${typechainCfg.target}`,
+      );
+    }
+    const cwd = config.paths.root;
+
+    const { glob } = await import('typechain');
+    const allFiles = glob(cwd, [
+      `${config.paths.artifacts}/!(build-info)/**/+([a-zA-Z0-9_])_sol_abi.json`,
+    ]);
+    if (typechainCfg.externalArtifacts) {
+      allFiles.push(...glob(cwd, typechainCfg.externalArtifacts, false));
+    }
+
+    const typechainOptions: Omit<PublicConfig, 'filesToProcess'> = {
+      cwd,
+      allFiles: allFiles.map((f) => f.replace(/_sol_abi\.json$/, '.json')),
+      outDir: typechainCfg.outDir,
+      target: typechainCfg.target,
+      flags: {
+        alwaysGenerateOverloads: typechainCfg.alwaysGenerateOverloads,
+        discriminateTypes: typechainCfg.discriminateTypes,
+        tsNocheck: typechainCfg.tsNocheck,
+        environment: 'hardhat',
+      },
+    };
+
+    // TODO come up with a cleaner way to handle all this solfile filestoprocess thing
+    const solAbisToProcess = needsFullRebuild ? allFiles : glob(cwd, artifactPaths); // only process changed files if not doing full rebuild
+    const filesToProcess: string[] = [];
+    for (const file of solAbisToProcess) {
+      const contractFile = file.replace(/_sol_abi\.json$/, '.json');
+      copyFileSync(file, contractFile);
+      filesToProcess.push(contractFile);
+    }
+    const { runTypeChain } = await import('typechain');
+    const result = await runTypeChain({
+      ...typechainOptions,
+      filesToProcess,
+    });
+
+    if (!quiet) {
+      // eslint-disable-next-line no-console
+      console.log(`Successfully generated ${result.filesGenerated} typings!`);
+    }
+
+    // if this is not full rebuilding, always re-generate types for external artifacts
+    if (!needsFullRebuild && typechainCfg.externalArtifacts) {
+      const result = await runTypeChain({
+        ...typechainOptions,
+        filesToProcess: glob(cwd, typechainCfg.externalArtifacts!, false), // only process files with external artifacts
+      });
+
+      if (!quiet) {
+        // eslint-disable-next-line no-console
+        console.log(
+          `Successfully generated ${result.filesGenerated} typings for external artifacts!`,
+        );
+      }
+    }
+    for (const file of filesToProcess) {
+      rmSync(file);
+    }
+  },
+);
+
+function getFQNamesFromCompilationOutput(compileSolOutput: any): string[] {
+  const allFQNNamesNested = compileSolOutput.artifactsEmittedPerJob.map((a: any) =>
+    a.artifactsEmittedPerFile.map((artifactPerFile: any) =>
+      artifactPerFile.artifactsEmitted.map((artifactName: any) =>
+        getFullyQualifiedName(artifactPerFile.file.sourceName, artifactName),
+      ),
+    ),
+  );
+
+  return allFQNNamesNested.flat(2);
+}

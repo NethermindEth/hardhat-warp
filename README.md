@@ -48,3 +48,7 @@ yarn test
 ```
 
 The Cairo files are written to the `artifacts` folder.
+
+# TypeChain
+
+`@typechain/hardhat` is required.
