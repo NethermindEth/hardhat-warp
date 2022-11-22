@@ -26,6 +26,8 @@ import { getDevnetProvider } from '../provider';
 import { starknetKeccak } from 'starknet/dist/utils/hash';
 import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
 
+const UDC_ADDRESS = '0x41a78e741e5af2fec34b695679bc6891742439f7afb8484ecd7766661ad02bf';
+
 export class ContractFactory {
   readonly interface: Interface;
   readonly bytecode: string;
@@ -96,7 +98,7 @@ export class ContractFactory {
               contract: factory.compiledContract,
             });
 
-          if (declareResponse.class_hash !== expected_hash) {
+          if (declareResponse.class_hash.trim() !== expected_hash.trim()) {
             throw new Error(
               `The hash of ${name} didn't match the hash expected by ${this.pathToCairoFile}\n` +
                 `Please compile the solidity for ${this.pathToCairoFile} again or update the hash.\n` +
@@ -136,17 +138,17 @@ export class ContractFactory {
       // using random salt, so that that the computed address is different each
       // time and starknet-devnet doesn't complain
       Math.floor(Math.random() * 1000000).toString(),
+      '1', // unique
       inputs.length.toString(),
       ...inputs,
-      '0',
     ];
     if (!(this.starknetContractFactory.providerOrAccount instanceof Account))
       throw new Error('Expect contract provider to be account');
     const { transaction_hash: deployTxHash } =
       await this.starknetContractFactory.providerOrAccount.execute({
-        contractAddress: this.starknetContractFactory.providerOrAccount.address,
+        contractAddress: UDC_ADDRESS,
         calldata: deployInputs,
-        entrypoint: 'deploy_contract',
+        entrypoint: 'deployContract',
       });
     await this.starknetContractFactory.providerOrAccount.waitForTransaction(deployTxHash);
     const txTrace = await this.sequencerProvider.getTransactionTrace(deployTxHash);
