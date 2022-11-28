@@ -51,6 +51,11 @@ address.getAddress = (address: string): string => {
 };
 
 export function freedom(require: NodeRequire) {
+  try {
+    require('@typechain/hardhat');
+  } catch {
+    throw new Error('@typechain/hardhat is required by hardhat-warp');
+  }
   const properties = require('@ethersproject/properties');
   // @ts-ignore
   properties.defineReadOnly = <T, K extends keyof T>(object: T, name: K, value: T[K]) => {

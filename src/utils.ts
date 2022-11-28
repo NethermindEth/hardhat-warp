@@ -70,43 +70,6 @@ export function checkHash(hash: HashInfo) {
   return needToCompile;
 }
 
-export function saveContract(contract: ContractInfo) {
-  const contracts = [contract];
-  if (fs.existsSync('warp_output/contracts.json')) {
-    const readData = fs.readFileSync('warp_output/contracts.json', 'utf-8');
-    const existingData = JSON.parse(readData) as ContractInfo[];
-    existingData.forEach((ctr) => {
-      const temp = new ContractInfo('', '');
-      Object.assign(temp, ctr);
-      if (temp.getName() !== contract.getName()) contracts.push(temp);
-    });
-  }
-  fs.writeFileSync('warp_output/contracts.json', JSON.stringify(contracts));
-}
-
-export function getContract(contractName: string) {
-  if (!fs.existsSync('warp_output/contracts.json')) {
-    throw new WarpPluginError('No Starknet contracts found. Please run hardhat compile');
-  }
-
-  const readData = fs.readFileSync('warp_output/contracts.json', 'utf-8');
-  const existingData = JSON.parse(readData) as ContractInfo[];
-  const contracts = existingData.map((ctr) => {
-    const temp = new ContractInfo('', '');
-    Object.assign(temp, ctr);
-    return temp;
-  });
-  const res = contracts.find((ctr) => {
-    return ctr.getName() === contractName;
-  });
-
-  if (res === undefined) {
-    throw new WarpPluginError('Given object was not found in Starknet contracts.');
-  }
-
-  return res;
-}
-
 export function normalizeAddress(address: string): string {
   // For some reason starknet-devnet does not zero padd thier addresses
   // For some reason starknet zero pads their addresses
@@ -229,35 +192,4 @@ export function benchmark(
 
 export function getCompiledCairoFile(path: string) {
   return path.slice(0, -6).concat('_compiled.json');
-}
-
-export class ContractInfo {
-  private name: string;
-  private solidityFile: string;
-
-  constructor(name: string, solidityFile: string) {
-    this.name = name;
-    this.solidityFile = solidityFile;
-  }
-
-  getName() {
-    return this.name;
-  }
-
-  getSolidityFile() {
-    return this.solidityFile;
-  }
-
-  getCairoFile() {
-    const cairoFile = this.solidityFile
-      .slice(0, -4)
-      .replaceAll('_', '__')
-      .replaceAll('-', '_')
-      .concat(`__WC__${this.name}.cairo`);
-    return path.join('warp_output', cairoFile);
-  }
-
-  getCompiledJson() {
-    return this.getCairoFile().slice(0, -6).concat('_compiled.json');
-  }
 }
