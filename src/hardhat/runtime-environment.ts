@@ -33,12 +33,12 @@ interface Snapshot<T> {
 
 extendConfig((config) => {
   // TODO use the venv here to run the python script
-  // const venv = config.networks.integratedDevnet?.venv;
-  // if (!venv) {
-  //   throw new Error(
-  //     'A path to a venv is required in order to invoke an instance of python with cairo-lang available, please check the hardhat-warp install documentation',
-  //   );
-  // }
+  const venv = config.networks.integratedDevnet?.venv;
+  if (!venv) {
+    throw new Error(
+      'A path to a venv is required in order to invoke an instance of python with cairo-lang available, please check the hardhat-warp install documentation',
+    );
+  }
 });
 
 extendEnvironment((hre) => {

@@ -147,13 +147,13 @@ subtask(TASK_COMPILE_SOLIDITY_COMPILE_JOBS).setAction(
         artifactsEmittedPerJob.push({ compilationJob, artifactsEmittedPerFile });
       }
 
-      // const pathToWarp = warpPath();
-      // execSync(
-      //   `${pathToWarp} transpile --base-path . --include-paths node_modules --compile-cairo -o ${
-      //     config.paths.artifacts
-      //   } ${[...files].join(' ')}`,
-      //   { stdio: 'inherit' },
-      // );
+      const pathToWarp = warpPath();
+      execSync(
+        `${pathToWarp} transpile --base-path . --include-paths node_modules --compile-cairo -o ${
+          config.paths.artifacts
+        } ${[...files].join(' ')}`,
+        { stdio: 'inherit' },
+      );
       return { artifactsEmittedPerJob };
     } catch (e) {
       if (!(e instanceof AggregateError)) {
