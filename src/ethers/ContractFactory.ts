@@ -21,6 +21,8 @@ import { starknetKeccak } from 'starknet/dist/utils/hash';
 import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
 import { globalHRE } from '../hardhat/runtime-environment';
 
+const UDC_ADDRESS = '0x41a78e741e5af2fec34b695679bc6891742439f7afb8484ecd7766661ad02bf';
+
 export class ContractFactory {
   readonly interface: Interface;
   readonly bytecode: string = '';
@@ -123,22 +125,25 @@ export class ContractFactory {
       // using random salt, so that that the computed address is different each
       // time and starknet-devnet doesn't complain
       Math.floor(Math.random() * 1000000).toString(),
+      '1',
       inputs.length.toString(),
       ...inputs,
-      '0',
+      // '0',
     ];
     if (!(this.starknetContractFactory.providerOrAccount instanceof Account))
       throw new Error('Expect contract provider to be account');
+    console.log({ accountAddress: this.starknetContractFactory.providerOrAccount.address });
     const { transaction_hash: deployTxHash } =
       await this.starknetContractFactory.providerOrAccount.execute({
-        contractAddress: this.starknetContractFactory.providerOrAccount.address,
+        contractAddress: UDC_ADDRESS,
         calldata: deployInputs,
-        entrypoint: 'deploy_contract',
+        entrypoint: 'deployContract',
       });
     await this.starknetContractFactory.providerOrAccount.waitForTransaction(deployTxHash);
     const txTrace = await this.sequencerProvider.getTransactionTrace(deployTxHash);
     benchmark(this.pathToCairoFile, 'constructor', txTrace);
     const deployAddress = txTrace.function_invocation.result[0];
+    console.log({ txTrace: JSON.stringify(txTrace, null, 2) });
     const starknetContract = new Contract(
       this.starknetContractFactory.abi,
       deployAddress,

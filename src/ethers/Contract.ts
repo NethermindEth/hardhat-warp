@@ -211,6 +211,10 @@ export class WarpContract extends EthersContract {
       // abiCoder checks for correct Sol input
       const abiEncodedInputs = abiCoder.encode(fragment.inputs, args);
       try {
+        console.log({ address: this.starknetContract.address });
+        console.log({ cairoFuncName });
+        console.log({ calldata });
+        console.log({ f: this.starknetContract.providerOrAccount });
         const invokeResponse = await this.starknetContract.providerOrAccount.execute(
           {
             contractAddress: this.starknetContract.address,
@@ -218,12 +222,14 @@ export class WarpContract extends EthersContract {
             entrypoint: cairoFuncName,
           },
           undefined,
+          // {maxFee: 20000}
           // TODO support this again when we look at using goerli
           // {
           //   // Set maxFee to some high number for goerli
           //   maxFee: process.env.STARKNET_PROVIDER_BASE_URL ? undefined : (2n ** 250n).toString(),
           // },
         );
+        console.log({ msg: 'RIGHT AFTER INVOKE' });
         const sigHash = this.interface.getSighash(fragment);
         const data = sigHash.concat(abiEncodedInputs.substring(2));
         return this.toEtheresTransactionResponse(invokeResponse, data, solName);
