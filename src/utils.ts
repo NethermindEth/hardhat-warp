@@ -109,8 +109,7 @@ export function nethersolcPath(version: SupportedSolcVersions): string {
 }
 
 export function warpPath(): string {
-  return '/Users/jorik/dev/nethermind/warp/bin/warp';
-  // return path.resolve(__dirname, '..', 'node_modules', '@nethermindeth/warp', 'bin', 'warp');
+  return path.resolve(__dirname, '..', 'node_modules', '@nethermindeth/warp', 'bin', 'warp');
 }
 
 export type StarknetDevnetGetAccountsResponse = {
