@@ -117,8 +117,8 @@ export class ContractFactory {
       declareResponse.class_hash,
       // using random salt, so that that the computed address is different each
       // time and starknet-devnet doesn't complain
-      Math.floor(Math.random() * 1000000).toString(),
-      '1', // unique
+      '0' || Math.floor(Math.random() * 1000000).toString(),
+      '0', // unique
       inputs.length.toString(),
       ...inputs,
     ];
