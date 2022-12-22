@@ -1,6 +1,5 @@
 import { NomicLabsHardhatPluginError } from 'hardhat/plugins';
 import 'colors';
-import { HashInfo } from './Hash';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -40,34 +39,6 @@ export async function compile(input: any): Promise<any> {
   });
 
   return JSON.parse(output);
-}
-
-export function checkHash(hash: HashInfo) {
-  const hashes = [hash];
-  let needToCompile = true;
-
-  if (!fs.existsSync('warp_output')) {
-    fs.mkdirSync('warp_output');
-  }
-
-  if (fs.existsSync('warp_output/hash.json')) {
-    const readData = fs.readFileSync('warp_output/hash.json', 'utf-8');
-    const existingData = JSON.parse(readData) as HashInfo[];
-    existingData.forEach((ctr) => {
-      const temp = new HashInfo('', '');
-      Object.assign(temp, ctr);
-      if (temp.getSolidityFile() === hash.getSolidityFile()) {
-        if (temp.getHash() === hash.getHash()) {
-          needToCompile = false;
-        }
-      } else {
-        hashes.push(temp);
-      }
-    });
-  }
-
-  fs.writeFileSync('warp_output/hash.json', JSON.stringify(hashes));
-  return needToCompile;
 }
 
 export function normalizeAddress(address: string): string {
