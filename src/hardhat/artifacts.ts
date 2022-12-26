@@ -1,3 +1,4 @@
+import fs from 'fs';
 import fsExtra from 'fs-extra';
 import * as os from 'os';
 import * as path from 'path';
@@ -21,6 +22,7 @@ import { EDIT_DISTANCE_THRESHOLD } from 'hardhat/internal/constants';
 import { HardhatError } from 'hardhat/internal/core/errors';
 import { ERRORS } from 'hardhat/internal/core/errors-list';
 import { glob, globSync } from 'hardhat/internal/util/glob';
+import { json } from 'starknet';
 
 export class Artifacts implements IArtifacts {
   private _validArtifacts: Array<{ sourceName: string; artifacts: string[] }>;
@@ -72,7 +74,7 @@ export class Artifacts implements IArtifacts {
 
   public async getArtifact(name: string): Promise<any> {
     const artifactPath = this._getArtifactPathSync(name);
-    return fsExtra.readJsonSync(artifactPath);
+    return json.parse(fs.readFileSync(artifactPath).toString('ascii'));
   }
 
   public async artifactExists(name: string): Promise<boolean> {
