@@ -211,6 +211,13 @@ export class WarpContract extends EthersContract {
       // abiCoder checks for correct Sol input
       const abiEncodedInputs = abiCoder.encode(fragment.inputs, args);
       try {
+        //  eslint-disable-next-line no-console
+        console.log({
+          accountAddress: this.starknetContract.providerOrAccount.address,
+          contractAddress: this.starknetContract.address,
+          calldata: calldata,
+          entrypoint: cairoFuncName,
+        });
         const invokeResponse = await this.starknetContract.providerOrAccount.execute(
           {
             contractAddress: this.starknetContract.address,
