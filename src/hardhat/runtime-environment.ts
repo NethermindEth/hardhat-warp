@@ -153,11 +153,9 @@ extendEnvironment((hre) => {
   };
 
   // @ts-ignore hre doesn't contain the waffle type information which is set by hardhat
-  hre.waffle = {
-    createFixtureLoader: createFixtureLoader,
-    // @ts-ignore
-    loadFixture: createFixtureLoader(),
-  };
+  hre.waffle.createFixtureLoader = createFixtureLoader;
+  // @ts-ignore
+  hre.waffle.loadFixture = createFixtureLoader();
 
   hre.devnet = devnet;
 
