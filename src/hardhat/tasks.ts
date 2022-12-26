@@ -282,8 +282,13 @@ subtask(TASK_TYPECHAIN_GENERATE_TYPES).setAction(
     // RUN TYPECHAIN TASK
     // @ts-ignore funky types cause we're not using normal imports here
     const typechainCfg = config.typechain;
-    // We don't support the fullRebuild option because we can't access taskArgsStore
-    if (artifactPaths.length === 0 && !typechainCfg.externalArtifacts) {
+    // NOTE: We replace the fullRequild from the taskArgsStore with our own in
+    // the hardhat config.
+    if (
+      !typechainCfg.fullRebuild &&
+      artifactPaths.length === 0 &&
+      !typechainCfg.externalArtifacts
+    ) {
       if (!quiet) {
         // eslint-disable-next-line no-console
         console.log('No need to generate any newer typings.');
@@ -294,9 +299,11 @@ subtask(TASK_TYPECHAIN_GENERATE_TYPES).setAction(
 
     // incremental generation is only supported in 'ethers-v5'
     // @todo: probably targets should specify somehow if then support incremental generation this won't work with custom targets
-    // We don't support the fullRebuild option because we can't access taskArgsStore
+    // NOTE: We replace the fullRequild from the taskArgsStore with our own in
+    // the hardhat config.
     const needsFullRebuild =
-      /*typechain.taskArgsStore.fullRebuild || */ typechainCfg.target !== 'ethers-v5';
+      /*typechain.taskArgsStore.fullRebuild || */ typechainCfg.target !== 'ethers-v5' ||
+      typechainCfg.fullRebuild;
     if (!quiet) {
       // eslint-disable-next-line no-console
       console.log(
@@ -315,7 +322,11 @@ subtask(TASK_TYPECHAIN_GENERATE_TYPES).setAction(
 
     const typechainOptions: Omit<PublicConfig, 'filesToProcess'> = {
       cwd,
-      allFiles: allFiles.map((f) => f.replace(/_sol_abi\.json$/, '.json')),
+      allFiles: allFiles.map((f) => {
+        const newFile = f.replace(/_sol_abi\.json$/, '.json');
+        copyFileSync(f, newFile);
+        return newFile;
+      }),
       outDir: typechainCfg.outDir,
       target: typechainCfg.target,
       flags: {
@@ -327,13 +338,9 @@ subtask(TASK_TYPECHAIN_GENERATE_TYPES).setAction(
     };
 
     // TODO come up with a cleaner way to handle all this solfile filestoprocess thing
-    const solAbisToProcess = needsFullRebuild ? allFiles : glob(cwd, artifactPaths); // only process changed files if not doing full rebuild
-    const filesToProcess: string[] = [];
-    for (const file of solAbisToProcess) {
-      const contractFile = file.replace(/_sol_abi\.json$/, '.json');
-      copyFileSync(file, contractFile);
-      filesToProcess.push(contractFile);
-    }
+    const filesToProcess = (needsFullRebuild ? allFiles : glob(cwd, artifactPaths)).map((f) =>
+      f.replace(/_sol_abi\.json$/, '.json'),
+    ); // only process changed files if not doing full rebuild
     const { runTypeChain } = await import('typechain');
     const result = await runTypeChain({
       ...typechainOptions,
@@ -359,8 +366,8 @@ subtask(TASK_TYPECHAIN_GENERATE_TYPES).setAction(
         );
       }
     }
-    for (const file of filesToProcess) {
-      rmSync(file);
+    for (const file of allFiles) {
+      rmSync(file.replace(/_sol_abi\.json$/, '.json'));
     }
   },
 );

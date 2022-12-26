@@ -5,6 +5,35 @@ and StarkNet instead of solc and Ethereum.
 
 ## Getting started
 
+In `hardhat.config.ts` configure the `integratedDevnet`.
+
+```
+networks: {
+  integratedDevnet: {
+    url: `http://127.0.0.1:${port}`,
+
+    // venv: "active" <- for the active virtual environment with installed starknet-devnet
+    // venv: "path/to/venv" <- for env with installed starknet-devnet (created with e.g. `python -m venv path/to/venv`)
+    venv: "../starknet-devnet/venv/",
+
+
+    // optional devnet CLI arguments
+    args: ["--seed", "0", "--timeout", "10000"],
+
+    // stdout: "logs/stdout.log" <- dumps stdout to the file
+    stdout: `.${port}.log`, // <- logs stdout to the terminal
+    // stderr: "logs/stderr.log" <- dumps stderr to the file
+    stderr: "STDERR"  // <- logs stderr to the terminal
+  },
+},
+```
+
+In the venv path make sure to install our version of the devnet:
+
+```
+pip install git+https://github.com/SwapnilRaj/starknet-devnet
+```
+
 Add the following two lines BEFORE any hardhat related imports in your
 `hardhat.config.ts`:
 
