@@ -117,23 +117,23 @@ export class ContractFactory {
       declareResponse.class_hash,
       // using random salt, so that that the computed address is different each
       // time and starknet-devnet doesn't complain
-      '0' || Math.floor(Math.random() * 1000000).toString(),
-      '0', // unique
+      Math.floor(Math.random() * 1000000).toString(),
       inputs.length.toString(),
       ...inputs,
+      '0',
     ];
     if (!(this.starknetContractFactory.providerOrAccount instanceof Account))
       throw new Error('Expect contract provider to be account');
     const { transaction_hash: deployTxHash } =
       await this.starknetContractFactory.providerOrAccount.execute({
-        contractAddress: UDC_ADDRESS,
+        contractAddress: this.starknetContractFactory.providerOrAccount.address,
         calldata: deployInputs,
-        entrypoint: 'deployContract',
+        entrypoint: 'deploy_contract',
       });
     await this.starknetContractFactory.providerOrAccount.waitForTransaction(deployTxHash);
     const txTrace = await this.sequencerProvider.getTransactionTrace(deployTxHash);
     benchmark(this.pathToCairoFile, 'constructor', txTrace);
-    const deployAddress = txTrace.function_invocation.result[1];
+    const deployAddress = txTrace.function_invocation.result[0];
     const starknetContract = new Contract(
       this.starknetContractFactory.abi,
       deployAddress,
