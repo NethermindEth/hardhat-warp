@@ -10,7 +10,7 @@ In `hardhat.config.ts` configure the `integratedDevnet`.
 ```
 networks: {
   integratedDevnet: {
-    url: `http://127.0.0.1:${port}`,
+    url: `http://127.0.0.1:5050`,
 
     // venv: "active" <- for the active virtual environment with installed starknet-devnet
     // venv: "path/to/venv" <- for env with installed starknet-devnet (created with e.g. `python -m venv path/to/venv`)
@@ -31,7 +31,7 @@ networks: {
 In the venv path make sure to install our version of the devnet:
 
 ```
-pip install git+https://github.com/SwapnilRaj/starknet-devnet
+pip install git+https://github.com/swapnilraj/starknet-devnet
 ```
 
 Add the following two lines BEFORE any hardhat related imports in your
