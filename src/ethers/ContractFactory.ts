@@ -1,105 +1,74 @@
-import {
-  Account,
-  AccountInterface,
-  Contract,
-  ContractFactory as StarknetContractFactory,
-  json,
-  ProviderInterface,
-} from 'starknet';
-import {
-  BigNumber,
-  BytesLike,
-  ContractFactory as EthersContractFactory,
-  Signer,
-  Contract as EthersContract,
-} from 'ethers';
+import * as path from 'path';
+import { Account, Contract, ContractFactory as StarknetContractFactory, json } from 'starknet';
+import { BigNumber, BytesLike, Signer, Contract as EthersContract } from 'ethers';
 import { Interface } from '@ethersproject/abi';
-import { id as keccak } from '@ethersproject/hash';
 import { TransactionRequest } from '@ethersproject/abstract-provider';
 import { ContractInterface } from '@ethersproject/contracts';
 import { WarpContract } from './Contract';
 import { abiCoder, encode, SolValue } from '../transcode';
 import { readFileSync } from 'fs';
 import { WarpSigner } from './Signer';
-import { benchmark, getCompiledCairoFile, getContract, getContractsToDeclare } from '../utils';
+import { benchmark, getContractsToDeclare } from '../utils';
 import { getDevnetProvider } from '../provider';
-import { starknetKeccak } from 'starknet/dist/utils/hash';
-import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
+import { ethTopicToEvent } from '../eventRegistry';
+import { globalHRE } from '../hardhat/runtime-environment';
+import { warpEventCanonicalSignaturehash } from '@nethermindeth/warp';
+
+const UDC_ADDRESS = '0x41a78e741e5af2fec34b695679bc6891742439f7afb8484ecd7766661ad02bf';
 
 export class ContractFactory {
   readonly interface: Interface;
-  readonly bytecode: string;
-  readonly signer: Signer;
-  pathToCairoFile: string;
+  readonly bytecode: string = '';
   private sequencerProvider = getDevnetProvider();
+  public pathToCairoFile: string;
 
   constructor(
     private starknetContractFactory: StarknetContractFactory,
-    private ethersContractFactory: EthersContractFactory,
-    pathToCairoFile: string,
+    ifc: Interface,
+    public signer: Signer,
+    public pathToCompiledCairo: string,
     public contractName: string,
   ) {
-    this.interface = ethersContractFactory.interface;
-    this.bytecode = ethersContractFactory.bytecode;
-    this.signer = ethersContractFactory.signer; // Todo use starknet signers if possible
-    this.pathToCairoFile = pathToCairoFile;
+    this.interface = ifc;
+    this.pathToCairoFile = `${this.pathToCompiledCairo.slice(0, -'_compiled.json'.length)}.cairo`;
 
-    const compiledCairo = JSON.parse(
-      readFileSync(getCompiledCairoFile(this.pathToCairoFile), 'utf-8'),
-    );
-    let eventsJson = compiledCairo?.abi?.filter(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (data: { [key: string]: any }) => data?.type === 'event',
-    );
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    eventsJson = eventsJson.map((e: any) => ({
-      topic: `0x${starknetKeccak(e?.name).toString(16)}`,
-      ...e,
-    }));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    eventsJson.forEach((e: any) => {
-      snTopicToName[e.topic] = e.name;
+    Object.entries(this.interface.events).forEach(([_, eventFragment]) => {
+      const eventName = eventFragment.name;
+      const ethTopic = warpEventCanonicalSignaturehash(
+        eventName,
+        eventFragment.inputs.map((ef) => ef.type),
+      );
+      ethTopicToEvent[ethTopic] = eventFragment;
     });
-
-    Object.entries(this.ethersContractFactory.interface.events).forEach(
-      ([eventName, eventFragment]) => {
-        const selector = keccak(eventFragment.format('sighash'));
-        const warpTopic = `${eventName.split('(')[0]}_${selector.slice(2).slice(0, 8)}`;
-        ethTopicToEvent[warpTopic] = [eventFragment, selector];
-      },
-    );
 
     // @ts-ignore
     this.interface._abiCoder = abiCoder;
   }
 
   // @TODO: Future; rename to populateTransaction?
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
   getDeployTransaction(...args: Array<any>): TransactionRequest {
-    console.warn(
-      'getDeployTransaction not implemented for Starknet: using the Eth transaction instead',
-    );
-    return this.ethersContractFactory.getDeployTransaction(...args);
+    throw new Error('Not implemented yet');
   }
 
   async deploy(...args: Array<SolValue>): Promise<EthersContract> {
     await Promise.all(
       Object.entries(getContractsToDeclare(this.pathToCairoFile)).map(
         async ([name, expected_hash]) => {
-          const factory = getStarknetContractFactory(
-            name,
-            this.starknetContractFactory.providerOrAccount,
+          const compiledContractPath = `${name}_compiled.json`;
+          const compiledContract = json.parse(
+            readFileSync(path.join('artifacts', compiledContractPath), 'utf8'),
           );
 
           const declareResponse =
             await this.starknetContractFactory.providerOrAccount.declareContract({
-              contract: factory.compiledContract,
+              contract: compiledContract,
             });
 
           if (declareResponse.class_hash !== expected_hash) {
             throw new Error(
-              `The hash of ${name} didn't match the hash expected by ${this.pathToCairoFile}\n` +
-                `Please compile the solidity for ${this.pathToCairoFile} again or update the hash.\n` +
+              `The hash of ${name} didn't match the hash expected by ${this.pathToCompiledCairo}\n` +
+                `Please compile the solidity for ${this.pathToCompiledCairo} again or update the hash.\n` +
                 `   ${name}'s expected hash: ${expected_hash}\n` +
                 `   ${name}'s actuall hash:  ${declareResponse.class_hash}\n`,
             );
@@ -112,7 +81,7 @@ export class ContractFactory {
           const txTrace = await this.sequencerProvider.getTransactionTrace(
             declareResponse.transaction_hash,
           );
-          benchmark(getContract(name).getCairoFile(), 'DECLARE', txTrace);
+          benchmark(this.pathToCompiledCairo, 'DECLARE', txTrace);
         },
       ),
     );
@@ -127,7 +96,7 @@ export class ContractFactory {
     const declareTrace = await this.sequencerProvider.getTransactionTrace(
       declareResponse.transaction_hash,
     );
-    benchmark(this.pathToCairoFile, 'DECLARE', declareTrace);
+    benchmark(this.pathToCompiledCairo, 'DECLARE', declareTrace);
 
     const inputs = encode(this.interface.deploy.inputs, args);
 
@@ -150,7 +119,7 @@ export class ContractFactory {
       });
     await this.starknetContractFactory.providerOrAccount.waitForTransaction(deployTxHash);
     const txTrace = await this.sequencerProvider.getTransactionTrace(deployTxHash);
-    benchmark(this.pathToCairoFile, 'constructor', txTrace);
+    benchmark(this.pathToCompiledCairo, 'constructor', txTrace);
     const deployAddress = txTrace.function_invocation.result[0];
     const starknetContract = new Contract(
       this.starknetContractFactory.abi,
@@ -160,8 +129,9 @@ export class ContractFactory {
     const contract = new WarpContract(
       starknetContract,
       this.starknetContractFactory,
-      this.ethersContractFactory,
-      this.pathToCairoFile,
+      this.signer,
+      this.interface,
+      this.pathToCompiledCairo,
     );
     return contract;
   }
@@ -171,18 +141,24 @@ export class ContractFactory {
     const contract = new WarpContract(
       starknetContract,
       this.starknetContractFactory,
-      this.ethersContractFactory,
-      this.pathToCairoFile,
+      this.signer,
+      this.interface,
+      this.pathToCompiledCairo,
     );
     return contract;
   }
 
   connect(account: WarpSigner): ContractFactory {
-    const connectedFactory = getStarknetContractFactory(this.contractName, account.starkNetSigner);
+    // @ts-ignore Types are borked. Doesn't get ethers is a member
+    const connectedFactory = globalHRE.ethers.getContractFactory(
+      this.contractName,
+      account.starkNetSigner,
+    );
     return new ContractFactory(
       connectedFactory,
-      this.ethersContractFactory,
-      this.pathToCairoFile,
+      this.interface,
+      account,
+      this.pathToCompiledCairo,
       this.contractName,
     );
   }
@@ -212,13 +188,4 @@ export class ContractFactory {
   ): EthersContract {
     throw new Error('getContract not supported');
   }
-}
-
-export function getStarknetContractFactory(
-  contractName: string,
-  defaultAccount: ProviderInterface | AccountInterface,
-): StarknetContractFactory {
-  const contract = getContract(contractName);
-  const compiledContract = json.parse(readFileSync(contract.getCompiledJson()).toString('ascii'));
-  return new StarknetContractFactory(compiledContract, defaultAccount, compiledContract.abi);
 }

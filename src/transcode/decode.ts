@@ -58,6 +58,9 @@ function decodePrimitive(
   if (typeString === 'fixed' || typeString === 'ufixed') {
     throw new Error('Not Supported');
   }
+  if (typeString === 'string') {
+    return decodeString(outputs);
+  }
   if (typeString.startsWith('bytes')) {
     return typeString.length === 5
       ? decodeBytes(outputs)
@@ -98,6 +101,15 @@ function decodeBytes(outputs: IterableIterator<string>): bigint {
   for (let i = 0; i < len; i++) {
     result << 8n;
     result += BigInt(readFelt(outputs));
+  }
+  return result;
+}
+
+function decodeString(outputs: IterableIterator<string>): string {
+  const len = readFelt(outputs);
+  let result = '';
+  for (let i = 0; i < len; i++) {
+    result += String.fromCharCode(Number(readFelt(outputs)));
   }
   return result;
 }

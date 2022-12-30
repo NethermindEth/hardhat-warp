@@ -10,7 +10,6 @@ import {
 import {
   BigNumberish,
   Contract as EthersContract,
-  ContractFactory as EthersContractFactory,
   ContractFunction,
   PopulatedTransaction,
   Signer,
@@ -19,7 +18,7 @@ import {
   ContractTransaction,
   ContractReceipt,
 } from '../../node_modules/ethers';
-import { FunctionFragment, Indexed, ParamType } from 'ethers/lib/utils';
+import { FunctionFragment, Indexed, Interface, ParamType } from 'ethers/lib/utils';
 import {
   BlockTag,
   EventFilter,
@@ -36,8 +35,9 @@ import { benchmark, normalizeAddress } from '../utils';
 import { WarpSigner } from './Signer';
 import { getDevnetPort, getDevnetProvider } from '../provider';
 import { WarpError } from './Error';
-import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
+import { ethTopicToEvent } from '../eventRegistry';
 import { devnet } from '../devnet';
+import { decodeEventLog } from '@nethermindeth/warp';
 
 const ASSERT_ERRORS = ['An ASSERT_EQ instruction failed', 'AssertionError:'];
 
@@ -61,6 +61,7 @@ export class WarpContract extends EthersContract {
   readonly resolvedAddress: Promise<string>;
 
   private sequencerProvider = getDevnetProvider();
+  public interface: Interface;
 
   public ignoredTopics = new Set([
     // Event topic for fee invocation, done by StarkNet
@@ -70,14 +71,12 @@ export class WarpContract extends EthersContract {
   constructor(
     private starknetContract: StarknetContract,
     private starknetContractFactory: StarknetContractFactory,
-    private ethersContractFactory: EthersContractFactory,
+    public signer: Signer,
+    ifc: Interface,
     private pathToCairoFile: string,
   ) {
-    super(
-      normalizeAddress(starknetContract.address),
-      ethersContractFactory.interface,
-      ethersContractFactory.signer,
-    );
+    super(normalizeAddress(starknetContract.address), ifc, signer);
+    this.interface = ifc;
     this.functions = starknetContract.functions;
     this.callStatic = starknetContract.callStatic;
     this.estimateGas = starknetContract.estimateGas;
@@ -116,7 +115,8 @@ export class WarpContract extends EthersContract {
     const connected = new WarpContract(
       this.starknetContractFactory.attach(this.address),
       this.starknetContractFactory,
-      this.ethersContractFactory,
+      this.signerOrProvider,
+      this.interface,
       this.pathToCairoFile,
     );
     connected.starknetContract.connect(warpSigner.starkNetSigner);
@@ -128,7 +128,8 @@ export class WarpContract extends EthersContract {
     const attached = new WarpContract(
       this.starknetContractFactory.attach(addressOrName),
       this.starknetContractFactory,
-      this.ethersContractFactory,
+      this.signer,
+      this.interface,
       this.pathToCairoFile,
     );
     return attached;
@@ -224,7 +225,7 @@ export class WarpContract extends EthersContract {
           //   maxFee: process.env.STARKNET_PROVIDER_BASE_URL ? undefined : (2n ** 250n).toString(),
           // },
         );
-        const sigHash = this.ethersContractFactory.interface.getSighash(fragment);
+        const sigHash = this.interface.getSighash(fragment);
         const data = sigHash.concat(abiEncodedInputs.substring(2));
         return this.toEtheresTransactionResponse(invokeResponse, data, solName);
       } catch (e) {
@@ -357,13 +358,14 @@ export class WarpContract extends EthersContract {
     transactionHash: string,
   ): Event[] {
     return events
-      .filter((e) => snTopicToName[e.keys[0]]) //!this.ignoredTopics.has(e.keys[0]))
+      .filter((e) => !this.ignoredTopics.has(e.keys[0]))
       .map((e, i): Event => {
-        const currentTopic = e.keys[0];
-        const [eventFragment, selector] = ethTopicToEvent[snTopicToName[currentTopic]];
+        const currentTopic = `${e.keys[0]}${e.keys[1]?.slice(2, 4)}`;
+        const eventFragment = ethTopicToEvent[currentTopic];
 
-        const results = decodeEvents(eventFragment.inputs, e.data);
-        const resultsArray = decode_(eventFragment.inputs, e.data.values());
+        const warpEvent = decodeEventLog([{ keys: e.keys, data: e.data, order: NaN }]);
+        const results = decodeEvents(eventFragment.inputs, warpEvent[0].data);
+        const resultsArray = decode_(eventFragment.inputs, warpEvent[0].data.values());
         return {
           blockNumber,
           blockHash,
@@ -372,7 +374,7 @@ export class WarpContract extends EthersContract {
           address: normalizeAddress(e.from_address),
           // abi encoded data
           data: abiCoder.encode(eventFragment.inputs, resultsArray),
-          topics: [selector],
+          topics: [currentTopic],
           transactionHash,
           logIndex: i,
           event: eventFragment.name,
