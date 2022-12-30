@@ -3,16 +3,19 @@
 The hardhat-warp framework overwrites parts of hardhat so that it uses Warp
 and StarkNet instead of solc and Ethereum.
 
-NOTE: hardhat-warp is in beta and there might be bugs with this. Please open issues and reach out to
+NOTE: hardhat-warp is in beta and there might be bugs. Please open issues or reach out to
 us on our [discord](https://discord.gg/cPqaZXev7P).
+
+## Template for new project
+
+If you're setting up a new project you can use [this repository](https://github.com/swapnilraj/hardhat-warp-template) as template.
 
 ## Installing dependencies
 
 Install the required dependencies in the hardhat project:
 
 ```
-yarn add @nethermindeth/harhdhat-warp
-yarn add @shardlabs/starknet-hardhat-plugin
+yarn add @nethermindeth/harhdhat-warp @shardlabs/starknet-hardhat-plugin
 ```
 
 If the project doesn't already have `@typechain/hardhat`; then you will need to install them:
@@ -21,7 +24,7 @@ If the project doesn't already have `@typechain/hardhat`; then you will need to 
 yarn add @typechain/hardhat
 ```
 
-Next you will need `starknet-devnet`; configure a virtual environment using `python3.9`:
+Next you will need `starknet-devnet`; configure a python virtual environment with `python3.9`:
 
 ```
 python3.9 -m venv venv
@@ -84,13 +87,13 @@ Make the required changes for compatibility with StarkNet, you can checkout some
 And then simply
 
 ```
-yarn compile
+yarn hardhat compile
 ```
 
 or
 
 ```
-yarn test
+yarn hardhat test
 ```
 
 The Cairo files are written to the `artifacts` folder.

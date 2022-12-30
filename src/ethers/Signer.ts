@@ -1,5 +1,5 @@
 import { Account } from 'starknet';
-import { Wallet } from '../../node_modules/ethers';
+import { Wallet } from 'ethers';
 import { normalizeAddress } from '../utils';
 
 export class WarpSigner extends Wallet {

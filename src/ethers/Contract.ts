@@ -17,7 +17,7 @@ import {
   BigNumber,
   ContractTransaction,
   ContractReceipt,
-} from '../../node_modules/ethers';
+} from 'ethers';
 import { FunctionFragment, Indexed, Interface, ParamType } from 'ethers/lib/utils';
 import {
   BlockTag,
