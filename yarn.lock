@@ -449,9 +449,22 @@
     tweetnacl "^1.0.3"
     tweetnacl-util "^0.15.1"
 
-"@nethermindeth/warp@link:../../warp":
-  version "0.0.0"
-  uid ""
+"@nethermindeth/warp@^2.4.4":
+  version "2.4.4"
+  resolved "https://registry.yarnpkg.com/@nethermindeth/warp/-/warp-2.4.4.tgz#ec6371f1b3d69c172ee5d0e48c726342bbbf8611"
+  integrity sha512-84C46TUgmW/arc1LNsGHBp+5NTKXxGx481YbqFyWi8QKW+O3iBR1xuGYudZjtR2h1SP4oU5HsnFgbDoBTdjTdg==
+  dependencies:
+    "@algorithm.ts/gcd" "^2.0.14"
+    chalk "^4.1.2"
+    commander "^9.1.0"
+    ethers "^5.6.2"
+    fs-extra "^10.0.1"
+    keccak "^3.0.2"
+    peggy "^1.2.0"
+    prompts "^2.4.2"
+    solc-typed-ast "^9.1.2"
+    ts-pegjs "^1.2.2"
+    web3 "^1.7.3"
 
 "@noble/hashes@1.1.2", "@noble/hashes@~1.1.1":
   version "1.1.2"
