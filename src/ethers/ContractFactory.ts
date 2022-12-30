@@ -34,8 +34,10 @@ export class ContractFactory {
 
     Object.entries(this.interface.events).forEach(([_, eventFragment]) => {
       const eventName = eventFragment.name;
-      const tpes = eventFragment.inputs.map((ef) => ef.type);
-      const ethTopic = warpEventCanonicalSignaturehash(eventName, tpes);
+      const ethTopic = warpEventCanonicalSignaturehash(
+        eventName,
+        eventFragment.inputs.map((ef) => ef.type),
+      );
       ethTopicToEvent[ethTopic] = eventFragment;
     });
 
