@@ -97,7 +97,6 @@ export async function getContractNames(inputPath: string) {
 
   const contracts = solCode
     .map((line) => {
-      // eslint-disable-next-line no-unused-vars
       const [contract, name] = line.split(new RegExp('[ ]+'));
       if (contract !== 'contract') return '';
       return name;
@@ -130,10 +129,10 @@ export function calculateStarkNetAddress(
 }
 
 export function getContractsToDeclare(path: string): { [name: string]: string } {
-  const declareRegex = /\/\/\s@declare\s.*__WC__(.*)\.cairo\s*\nconst\s.*\s=\s(.*);/g;
+  const declareRegex = /\/\/\s@declare\s(.*)\.cairo\s*\nconst\s.*\s=\s(.*);/g;
   const cairoFile = fs.readFileSync(path, 'utf-8');
   const matches = cairoFile.matchAll(declareRegex);
-  return Object.fromEntries([...matches].map((match) => [match[1], match[2]]));
+  return Object.fromEntries([...matches].map((match) => [match[1].trim(), match[2].trim()]));
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -1,7 +1,7 @@
-import { Account, Contract, ContractFactory as StarknetContractFactory } from 'starknet';
+import * as path from 'path';
+import { Account, Contract, ContractFactory as StarknetContractFactory, json } from 'starknet';
 import { BigNumber, BytesLike, Signer, Contract as EthersContract } from 'ethers';
 import { Interface } from '@ethersproject/abi';
-import { id as keccak } from '@ethersproject/hash';
 import { TransactionRequest } from '@ethersproject/abstract-provider';
 import { ContractInterface } from '@ethersproject/contracts';
 import { WarpContract } from './Contract';
@@ -10,47 +10,33 @@ import { readFileSync } from 'fs';
 import { WarpSigner } from './Signer';
 import { benchmark, getContractsToDeclare } from '../utils';
 import { getDevnetProvider } from '../provider';
-import { starknetKeccak } from 'starknet/dist/utils/hash';
-import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
+import { ethTopicToEvent } from '../eventRegistry';
 import { globalHRE } from '../hardhat/runtime-environment';
+import { warpEventCanonicalSignaturehash } from '@nethermindeth/warp';
 
 const UDC_ADDRESS = '0x41a78e741e5af2fec34b695679bc6891742439f7afb8484ecd7766661ad02bf';
 
 export class ContractFactory {
   readonly interface: Interface;
   readonly bytecode: string = '';
-  pathToCairoFile: string;
   private sequencerProvider = getDevnetProvider();
+  public pathToCairoFile: string;
 
   constructor(
     private starknetContractFactory: StarknetContractFactory,
     ifc: Interface,
     public signer: Signer,
-    pathToCairoFile: string,
+    public pathToCompiledCairo: string,
     public contractName: string,
   ) {
-    this.pathToCairoFile = pathToCairoFile;
     this.interface = ifc;
+    this.pathToCairoFile = `${this.pathToCompiledCairo.slice(0, -'_compiled.json'.length)}.cairo`;
 
-    const compiledCairo = JSON.parse(readFileSync(this.pathToCairoFile, 'utf-8'));
-    let eventsJson = compiledCairo?.abi?.filter(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (data: { [key: string]: any }) => data?.type === 'event',
-    );
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    eventsJson = eventsJson.map((e: any) => ({
-      topic: `0x${starknetKeccak(e?.name).toString(16)}`,
-      ...e,
-    }));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    eventsJson.forEach((e: any) => {
-      snTopicToName[e.topic] = e.name;
-    });
-
-    Object.entries(this.interface.events).forEach(([eventName, eventFragment]) => {
-      const selector = keccak(eventFragment.format('sighash'));
-      const warpTopic = `${eventName.split('(')[0]}_${selector.slice(2).slice(0, 8)}`;
-      ethTopicToEvent[warpTopic] = [eventFragment, selector];
+    Object.entries(this.interface.events).forEach(([_, eventFragment]) => {
+      const eventName = eventFragment.name;
+      const tpes = eventFragment.inputs.map((ef) => ef.type);
+      const ethTopic = warpEventCanonicalSignaturehash(eventName, tpes);
+      ethTopicToEvent[ethTopic] = eventFragment;
     });
 
     // @ts-ignore
@@ -67,21 +53,20 @@ export class ContractFactory {
     await Promise.all(
       Object.entries(getContractsToDeclare(this.pathToCairoFile)).map(
         async ([name, expected_hash]) => {
-          // @ts-ignore Types are borked. Doesn't get ethers is a member
-          const factory = globalHRE.ethers.getContractFactory(
-            name,
-            this.starknetContractFactory.providerOrAccount,
+          const compiledContractPath = `${name}_compiled.json`;
+          const compiledContract = json.parse(
+            readFileSync(path.join('artifacts', compiledContractPath), 'utf8'),
           );
 
           const declareResponse =
             await this.starknetContractFactory.providerOrAccount.declareContract({
-              contract: factory.compiledContract,
+              contract: compiledContract,
             });
 
           if (declareResponse.class_hash !== expected_hash) {
             throw new Error(
-              `The hash of ${name} didn't match the hash expected by ${this.pathToCairoFile}\n` +
-                `Please compile the solidity for ${this.pathToCairoFile} again or update the hash.\n` +
+              `The hash of ${name} didn't match the hash expected by ${this.pathToCompiledCairo}\n` +
+                `Please compile the solidity for ${this.pathToCompiledCairo} again or update the hash.\n` +
                 `   ${name}'s expected hash: ${expected_hash}\n` +
                 `   ${name}'s actuall hash:  ${declareResponse.class_hash}\n`,
             );
@@ -94,7 +79,7 @@ export class ContractFactory {
           const txTrace = await this.sequencerProvider.getTransactionTrace(
             declareResponse.transaction_hash,
           );
-          benchmark(this.pathToCairoFile, 'DECLARE', txTrace);
+          benchmark(this.pathToCompiledCairo, 'DECLARE', txTrace);
         },
       ),
     );
@@ -109,7 +94,7 @@ export class ContractFactory {
     const declareTrace = await this.sequencerProvider.getTransactionTrace(
       declareResponse.transaction_hash,
     );
-    benchmark(this.pathToCairoFile, 'DECLARE', declareTrace);
+    benchmark(this.pathToCompiledCairo, 'DECLARE', declareTrace);
 
     const inputs = encode(this.interface.deploy.inputs, args);
 
@@ -132,7 +117,7 @@ export class ContractFactory {
       });
     await this.starknetContractFactory.providerOrAccount.waitForTransaction(deployTxHash);
     const txTrace = await this.sequencerProvider.getTransactionTrace(deployTxHash);
-    benchmark(this.pathToCairoFile, 'constructor', txTrace);
+    benchmark(this.pathToCompiledCairo, 'constructor', txTrace);
     const deployAddress = txTrace.function_invocation.result[0];
     const starknetContract = new Contract(
       this.starknetContractFactory.abi,
@@ -144,7 +129,7 @@ export class ContractFactory {
       this.starknetContractFactory,
       this.signer,
       this.interface,
-      this.pathToCairoFile,
+      this.pathToCompiledCairo,
     );
     return contract;
   }
@@ -156,7 +141,7 @@ export class ContractFactory {
       this.starknetContractFactory,
       this.signer,
       this.interface,
-      this.pathToCairoFile,
+      this.pathToCompiledCairo,
     );
     return contract;
   }
@@ -171,7 +156,7 @@ export class ContractFactory {
       connectedFactory,
       this.interface,
       account,
-      this.pathToCairoFile,
+      this.pathToCompiledCairo,
       this.contractName,
     );
   }

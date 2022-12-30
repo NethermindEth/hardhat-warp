@@ -35,8 +35,9 @@ import { benchmark, normalizeAddress } from '../utils';
 import { WarpSigner } from './Signer';
 import { getDevnetPort, getDevnetProvider } from '../provider';
 import { WarpError } from './Error';
-import { ethTopicToEvent, snTopicToName } from '../eventRegistry';
+import { ethTopicToEvent } from '../eventRegistry';
 import { devnet } from '../devnet';
+import { decodeEventLog } from '@nethermindeth/warp';
 
 const ASSERT_ERRORS = ['An ASSERT_EQ instruction failed', 'AssertionError:'];
 
@@ -211,13 +212,6 @@ export class WarpContract extends EthersContract {
       // abiCoder checks for correct Sol input
       const abiEncodedInputs = abiCoder.encode(fragment.inputs, args);
       try {
-        //  eslint-disable-next-line no-console
-        console.log({
-          accountAddress: this.starknetContract.providerOrAccount.address,
-          contractAddress: this.starknetContract.address,
-          calldata: calldata,
-          entrypoint: cairoFuncName,
-        });
         const invokeResponse = await this.starknetContract.providerOrAccount.execute(
           {
             contractAddress: this.starknetContract.address,
@@ -364,13 +358,14 @@ export class WarpContract extends EthersContract {
     transactionHash: string,
   ): Event[] {
     return events
-      .filter((e) => snTopicToName[e.keys[0]]) //!this.ignoredTopics.has(e.keys[0]))
+      .filter((e) => !this.ignoredTopics.has(e.keys[0]))
       .map((e, i): Event => {
-        const currentTopic = e.keys[0];
-        const [eventFragment, selector] = ethTopicToEvent[snTopicToName[currentTopic]];
+        const currentTopic = `${e.keys[0]}${e.keys[1]?.slice(2, 4)}`;
+        const eventFragment = ethTopicToEvent[currentTopic];
 
-        const results = decodeEvents(eventFragment.inputs, e.data);
-        const resultsArray = decode_(eventFragment.inputs, e.data.values());
+        const warpEvent = decodeEventLog([{ keys: e.keys, data: e.data, order: NaN }]);
+        const results = decodeEvents(eventFragment.inputs, warpEvent[0].data);
+        const resultsArray = decode_(eventFragment.inputs, warpEvent[0].data.values());
         return {
           blockNumber,
           blockHash,
@@ -379,7 +374,7 @@ export class WarpContract extends EthersContract {
           address: normalizeAddress(e.from_address),
           // abi encoded data
           data: abiCoder.encode(eventFragment.inputs, resultsArray),
-          topics: [selector],
+          topics: [currentTopic],
           transactionHash,
           logIndex: i,
           event: eventFragment.name,

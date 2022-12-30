@@ -37,6 +37,7 @@ import { getFullyQualifiedName } from 'hardhat/utils/contract-names';
 import { TASK_TYPECHAIN_GENERATE_TYPES } from '@typechain/hardhat/dist/constants';
 import { PublicConfig } from 'typechain';
 import { copyFileSync, rmSync } from 'fs';
+import { globalHRE } from '../hardhat/runtime-environment';
 
 type ArtifactsEmittedPerFile = Array<{
   file: taskTypes.ResolvedFile;
@@ -114,11 +115,19 @@ subtask(TASK_COMPILE_SOLIDITY_COMPILE_JOBS).setAction(
       artifactsEmittedPerJob.push({ compilationJob, artifactsEmittedPerFile });
     }
 
+    if (!globalHRE.config.networks.integratedDevnet.venv)
+      throw new Error(
+        'A path to venv with starknet-devnet is required, please check the hardhat-warp install documentation',
+      );
+    const WARP_VENV_PREFIX = path.resolve(globalHRE.config.networks.integratedDevnet.venv, 'bin');
+
+    const PATH_PREFIX = `PATH=${WARP_VENV_PREFIX}:$PATH`;
+
     const pathToWarp = warpPath();
     execSync(
-      `${pathToWarp} transpile --base-path . --include-paths node_modules --compile-cairo -o ${
-        config.paths.artifacts
-      } ${[...files].join(' ')}`,
+      `${PATH_PREFIX} ${pathToWarp} transpile --compile-cairo -o ${config.paths.artifacts} ${[
+        ...files,
+      ].join(' ')}`,
       { stdio: 'inherit' },
     );
     return { artifactsEmittedPerJob };
