@@ -30,6 +30,12 @@ Next you will need `starknet-devnet`; configure a python virtual environment wit
 python3.9 -m venv venv
 ```
 
+If while setting up warp, a "Python.h" error message (like the one below) is thrown, try to execute the new python-dev command.
+```
+fatal error: Python.h: No such file or directory compilation terminated.
+```
+The `sudo apt install pythonm.n-dev` is now changed to `sudo apt install libpythonm.n-dev`
+
 Installing our modified version of `starknet-devnet`:
 
 ```
