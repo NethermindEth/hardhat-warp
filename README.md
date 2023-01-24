@@ -12,16 +12,16 @@ If you're setting up a new project you can use [this repository](https://github.
 
 ## Installing dependencies
 
+The project must use `@typechain/hardhat`, and `@typechain/ethers-v5 ^10.1.1`:
+
+```
+yarn add @typechain/hardhat @typechain/ethers-v5
+```
+
 Install the required dependencies in the hardhat project:
 
 ```
 yarn add @nethermindeth/harhdhat-warp @shardlabs/starknet-hardhat-plugin
-```
-
-If the project doesn't already have `@typechain/hardhat`; then you will need to install them:
-
-```
-yarn add @typechain/hardhat
 ```
 
 Next you will need `starknet-devnet`; configure a python virtual environment with `python3.9`:
