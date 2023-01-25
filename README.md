@@ -34,7 +34,7 @@ If while setting up warp, a "Python.h" error message (like the one below) is thr
 ```
 fatal error: Python.h: No such file or directory compilation terminated.
 ```
-The `sudo apt install pythonm.n-dev` is now changed to `sudo apt install libpythonm.n-dev`
+The `sudo apt install python3.9-dev` is now changed to `sudo apt install libpython3.9-dev`
 
 Installing our modified version of `starknet-devnet`:
 
