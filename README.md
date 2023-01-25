@@ -12,22 +12,24 @@ If you're setting up a new project you can use [this repository](https://github.
 
 ## Installing dependencies
 
+The project must use `@typechain/hardhat`, and `@typechain/ethers-v5 ^10.1.1`:
+
+```
+yarn add --dev @typechain/hardhat @typechain/ethers-v5
+```
+
 Install the required dependencies in the hardhat project:
 
 ```
-yarn add @nethermindeth/harhdhat-warp @shardlabs/starknet-hardhat-plugin
+yarn add --dev @nethermindeth/harhdhat-warp @shardlabs/starknet-hardhat-plugin
 ```
 
-If the project doesn't already have `@typechain/hardhat`; then you will need to install them:
-
-```
-yarn add @typechain/hardhat
-```
-
-Next you will need `starknet-devnet`; configure a python virtual environment with `python3.9`:
+Next you will need our modified version of the `starknet-devnet`; configure a
+python virtual environment with `python3.9` and install our devnet to it:
 
 ```
 python3.9 -m venv venv
+
 ```
 
 If while setting up warp, a "Python.h" error message (like the one below) is thrown, try to execute the new python-dev command.
@@ -39,6 +41,9 @@ The `sudo apt install python3.9-dev` is now changed to `sudo apt install libpyth
 Installing our modified version of `starknet-devnet`:
 
 ```
+
+source venv/bin/activate
+
 pip install git+https://github.com/swapnilraj/starknet-devnet
 ```
 
