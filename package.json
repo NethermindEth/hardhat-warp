@@ -12,7 +12,7 @@
     "@nethermindeth/warp": "^2.4.4",
     "@nomiclabs/hardhat-ethers": "^2.1.1",
     "@shardlabs/starknet-hardhat-plugin": "^0.6.6",
-    "@typechain/hardhat": "^6.1.4",
+    "@typechain/hardhat": "^6.1.5",
     "@types/chai": "^4.1.7",
     "@types/debug": "^4.1.7",
     "@types/elliptic": "^6.4.14",
@@ -34,7 +34,7 @@
     "mocha": "^7.1.2",
     "prettier": "^2.7.1",
     "pretty-quick": "^3.1.3",
-    "starknet": "4.7.0",
+    "starknet": "4.17.1",
     "true-case-path": "^2.2.1",
     "ts-node": "^8.1.0",
     "typechain": "^8.1.1",
@@ -51,6 +51,8 @@
     "release": "yarn tsc && npm publish --access public"
   },
   "peerDependencies": {
+    "@typechain/ethers-v5": "^10.2.0",
+    "@typechain/hardhat": "^6.1.5",
     "hardhat": "^2.0.0"
   },
   "prettier": {
