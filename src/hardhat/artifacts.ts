@@ -65,6 +65,7 @@ export class Artifacts implements IArtifacts {
     };
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public async getArtifactAbi(name: string): Promise<any> {
     const artifactPath = await this.getArtifactPath(name);
     // This is pure laziness and needs to be made more reliable in the long term
@@ -72,6 +73,7 @@ export class Artifacts implements IArtifacts {
     return fsExtra.readJson(abiPath);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public async getArtifact(name: string): Promise<any> {
     const artifactPath = this._getArtifactPathSync(name);
     return json.parse(fs.readFileSync(artifactPath).toString('ascii'));
@@ -91,6 +93,7 @@ export class Artifacts implements IArtifacts {
     return paths.map((p) => this._getFullyQualifiedNameFromPath(p)).sort();
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public async getBuildInfo(fullyQualifiedName: string): Promise<BuildInfo | undefined> {
     throw Error('Not implemented yet');
   }
@@ -109,14 +112,19 @@ export class Artifacts implements IArtifacts {
     throw Error('Not implemented yet');
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public async saveArtifactAndDebugFile(artifact: Artifact, pathToBuildInfo?: string) {
     // We expect warp transpile to write the artifacts
   }
 
   public async saveBuildInfo(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     solcVersion: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     solcLongVersion: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     input: CompilerInput,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     output: CompilerOutput,
   ): Promise<string> {
     // We don't do anything here because we don't support it yet
@@ -146,13 +154,6 @@ export class Artifacts implements IArtifacts {
     }
 
     // await this._removeObsoleteBuildInfos();
-  }
-
-  /**
-   * Remove all build infos that aren't used by any debug file
-   */
-  private async removeObsoleteBuildInfos() {
-    // Do nothing
   }
   /**
    * Returns the absolute path to the given artifact
@@ -213,7 +214,6 @@ export class Artifacts implements IArtifacts {
         }
       }
 
-      // eslint-disable-next-line @nomiclabs/hardhat-internal-rules/only-hardhat-error
       throw error;
     }
   }
@@ -223,6 +223,7 @@ export class Artifacts implements IArtifacts {
    * and synchronous
    */
   private _trueCasePathSync(filePath: string, basePath?: string): string | null {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { trueCasePathSync } = require('true-case-path');
 
     try {
@@ -235,7 +236,6 @@ export class Artifacts implements IArtifacts {
         }
       }
 
-      // eslint-disable-next-line @nomiclabs/hardhat-internal-rules/only-hardhat-error
       throw error;
     }
   }
@@ -420,10 +420,6 @@ Please replace "${contractName}" for the correct contract name wherever you are 
     return artifactPath;
   }
 
-  private _getDebugFilePath(artifactPath: string): string {
-    throw new Error('Not supported yet');
-  }
-
   private _getArtifactPathFromFiles(contractName: string, files: string[]): string {
     const matchingFiles = files.filter((file) => {
       return path.basename(file) === `${contractName}_compiled.json`;
@@ -468,14 +464,5 @@ Please replace "${contractName}" for the correct contract name wherever you are 
    */
   private async _removeArtifactFiles(artifactPath: string) {
     await fsExtra.remove(artifactPath);
-
-    //     const debugFilePath = this._getDebugFilePath(artifactPath);
-    //     const buildInfoPath = await this._getBuildInfoFromDebugFile(debugFilePath);
-
-    //     await fsExtra.remove(debugFilePath);
-
-    //     if (buildInfoPath !== undefined) {
-    //       await fsExtra.remove(buildInfoPath);
-    //     }
   }
 }
