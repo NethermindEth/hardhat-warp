@@ -164,6 +164,10 @@ export class Artifacts implements IArtifacts {
     return path.join(this._artifactsPath, sourceName, `${contractName}_compiled.json`);
   }
 
+  public getBuildInfoSync(fullyQualifiedName: string): BuildInfo | undefined {
+    throw new Error('not implemented');
+  }
+
   /**
    * Returns the absolute path to the artifact that corresponds to the given
    * name.

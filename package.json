@@ -1,6 +1,6 @@
 {
   "name": "@nethermindeth/hardhat-warp",
-  "version": "1.1.8",
+  "version": "1.1.10",
   "description": "Hardhat plugin for the Warp transpiler",
   "main": "dist/index.js",
   "author": "Nethermind",
@@ -26,7 +26,7 @@
     "eslint": "^8.23.1",
     "eslint-config-google": "^0.14.0",
     "ethers": "^5.7.0",
-    "hardhat": "^2.12.2",
+    "hardhat": "^2.0.0",
     "husky": "^8.0.1",
     "lint-staged": "^13.0.3",
     "mocha": "^7.1.2",

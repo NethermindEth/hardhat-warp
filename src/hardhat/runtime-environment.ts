@@ -54,9 +54,9 @@ extendEnvironment((hre) => {
       throw new Error('Factory options on getContractFactory not supported');
     }
 
-    const solidityAbi = await (hre.artifacts as Artifacts).getArtifactAbi(name);
-    const artifact = await (hre.artifacts as Artifacts).getArtifact(name);
-    const cairoFile = await (hre.artifacts as Artifacts).getArtifactPath(name);
+    const solidityAbi = await (hre.artifacts as unknown as Artifacts).getArtifactAbi(name);
+    const artifact = await (hre.artifacts as unknown as Artifacts).getArtifact(name);
+    const cairoFile = await (hre.artifacts as unknown as Artifacts).getArtifactPath(name);
     const starknetContractFactory = new StarkNetContractFactory(
       artifact,
       callClassHashScript(cairoFile),
