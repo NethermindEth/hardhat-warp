@@ -15,7 +15,7 @@ import {
   TASK_COMPILE_SOLIDITY_LOG_NOTHING_TO_COMPILE,
   TASK_COMPILE_SOLIDITY_MERGE_COMPILATION_JOBS,
 } from 'hardhat/builtin-tasks/task-names';
-import { subtask } from 'hardhat/config';
+import { subtask, task } from 'hardhat/config';
 import {
   Artifacts,
   CompilationJob,
@@ -38,6 +38,7 @@ import { TASK_TYPECHAIN_GENERATE_TYPES } from '@typechain/hardhat/dist/constants
 import { PublicConfig } from 'typechain';
 import { copyFileSync, rmSync } from 'fs';
 import { globalHRE } from '../hardhat/runtime-environment';
+import { runVenvSetup } from '@nethermindeth/warp';
 
 type ArtifactsEmittedPerFile = Array<{
   file: taskTypes.ResolvedFile;
@@ -396,3 +397,10 @@ function getFQNamesFromCompilationOutput(compileSolOutput: any): string[] {
 
   return allFQNNamesNested.flat(2);
 }
+
+task('warp-install', 'Installs the python requirements for Warp')
+  // TODO: replace the default value with a constant defined in Warp.
+  .addParam('python', 'Path to python3 executable', 'python3.9')
+  .setAction(async ({ python }) => {
+    runVenvSetup({ verbose: true, python });
+  });

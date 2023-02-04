@@ -38,7 +38,13 @@ We will support
 [starknet-hardhat-plguin](https://github.com/Shard-Labs/starknet-hardhat-plugin)'s
 dockerized devnet and starknet cli soon
 
-In `hardhat.config.ts`, add the following:
+In `hardhat.config.ts` add the import after importing hardhat:
+
+```
+import '@nethermindeth/hardhat-warp';
+```
+
+Then add the following to run on a local testnet:
 
 ```
 starknet: {
@@ -56,21 +62,13 @@ networks: {
 },
 ```
 
-Add the `harhdhat-warp` import after hardhat is imported;
+Install the python dependencies of hardhat-warp:
 
 ```
-import 'hardhat-warp';
+yarn hardhat warp-install
 ```
 
-Here's an example configuration from the [UniStark repo](https://github.com/NethermindEth/UniStark/blob/main/hardhat.config.ts#L1):
-
-```
-import 'hardhat-typechain'
-import '@nomiclabs/hardhat-ethers'
-import '@nomiclabs/hardhat-waffle'
-import '@nomiclabs/hardhat-etherscan'
-import '@nethermindeth/hardhat-warp'
-```
+Here's an example configuration from the [UniStark repo](https://github.com/NethermindEth/UniStark/blob/main/hardhat.config.ts#L1).
 
 ## Solidity changes
 
