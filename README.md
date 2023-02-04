@@ -10,30 +10,33 @@ us on our [discord](https://discord.gg/cPqaZXev7P).
 
 If you're setting up a new project you can use [this repository](https://github.com/swapnilraj/hardhat-warp-template) as template.
 
-## Installing dependencies
+## Configuring you project
 
-The project must use `@typechain/hardhat`, and `@typechain/ethers-v5 ^10.1.1`:
+The project has two peer dependencies which must be used in your hardhat repo.
+These are `@typechain/hardhat` (over hardhat-typechain) and the latest version
+of `@typechain/ethers-v5` (^10.1.1). Many older projects have old versions of
+these dependencies already installed. Updating them is simple.
+
+Install hardhat-warp
 
 ```
-yarn add --dev @typechain/hardhat @typechain/ethers-v5
+yarn add --dev @nethermindeth/harhdhat-warp
 ```
 
-Install the required dependencies in the hardhat project:
-
-```
-yarn add --dev @nethermindeth/harhdhat-warp @shardlabs/starknet-hardhat-plugin
-```
-
-Next you will need our modified version of the `starknet-devnet`; configure a
-python virtual environment with `python3.9` and install our devnet to it:
+You will need to have python env with an instance of `starknet-devnet` and
+`cairo-lang`. See instructions for setting up `cairo-lang`
+[here](https://cairo-lang.org/docs/quickstart.html) and `starknet-devnet`
+[here](https://shard-labs.github.io/starknet-devnet/docs/intro).
 
 ```
 python3.9 -m venv venv
 source venv/bin/activate
-pip install git+https://github.com/swapnilraj/starknet-devnet
+pip install cairo-lang starknet-devnet
 ```
 
-## Configuring hardhat
+We will support
+[starknet-hardhat-plguin](https://github.com/Shard-Labs/starknet-hardhat-plugin)'s
+dockerized devnet and starknet cli soon
 
 In `hardhat.config.ts`, add the following:
 
@@ -45,7 +48,7 @@ networks: {
   integratedDevnet: {
     url: `http://127.0.0.1:5050`,
 
-    venv: "<path/to/venv/from/before>",
+    venv: "<path/to/venv/with/starknet-devnet>",
     args: ["--seed", "0", "--timeout", "10000"],
     stdout: `stdout.log`, // <- logs redirected to log file
     stderr: "STDERR"  // <- logs stderr to the terminal
@@ -53,15 +56,7 @@ networks: {
 },
 ```
 
-Add the following two lines **BEFORE** any hardhat related imports in your
-`hardhat.config.ts`:
-
-```typescript
-import { freedom } from '@nethermindeth/hardhat-warp/src/index_before';
-freedom(require);
-```
-
-Add the `harhdhat-warp` import **AFTER** all the hardhat related imports:
+Add the `harhdhat-warp` import after hardhat is imported;
 
 ```
 import 'hardhat-warp';
@@ -71,23 +66,19 @@ Here's an example configuration from the [UniStark repo](https://github.com/Neth
 
 ```
 import 'hardhat-typechain'
-import {freedom} from '@nethermindeth/hardhat-warp/src/index_before'
-freedom(require)
 import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-waffle'
 import '@nomiclabs/hardhat-etherscan'
 import '@nethermindeth/hardhat-warp'
 ```
 
-Make the required changes for compatibility with StarkNet, you can checkout some commonly required changes [here](https://nethermindeth.github.io/warp/docs/get_around_unsupported_features).
+## Solidity changes
 
-And then simply
+Make the required changes for compatibility with StarkNet, you can checkout
+some commonly required changes
+[here](https://nethermindeth.github.io/warp/docs/get_around_unsupported_features).
 
-```
-yarn hardhat compile
-```
-
-or
+## Using hardhat warp
 
 ```
 yarn hardhat test

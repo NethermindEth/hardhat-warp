@@ -365,7 +365,7 @@ subtask(TASK_TYPECHAIN_GENERATE_TYPES).setAction(
     if (!needsFullRebuild && typechainCfg.externalArtifacts) {
       const result = await runTypeChain({
         ...typechainOptions,
-        filesToProcess: glob(cwd, typechainCfg.externalArtifacts!, false), // only process files with external artifacts
+        filesToProcess: glob(cwd, typechainCfg.externalArtifacts, false), // only process files with external artifacts
       });
 
       if (!quiet) {
@@ -381,9 +381,13 @@ subtask(TASK_TYPECHAIN_GENERATE_TYPES).setAction(
   },
 );
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getFQNamesFromCompilationOutput(compileSolOutput: any): string[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allFQNNamesNested = compileSolOutput.artifactsEmittedPerJob.map((a: any) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     a.artifactsEmittedPerFile.map((artifactPerFile: any) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       artifactPerFile.artifactsEmitted.map((artifactName: any) =>
         getFullyQualifiedName(artifactPerFile.file.sourceName, artifactName),
       ),

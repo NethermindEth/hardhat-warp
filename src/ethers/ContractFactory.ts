@@ -1,13 +1,12 @@
 import * as path from 'path';
-import { ContractFactory as StarknetContractFactory, json } from 'starknet';
-import { BigNumber, BytesLike, Signer, Contract as EthersContract } from 'ethers';
+import { Account, ContractFactory as StarknetContractFactory, json } from 'starknet';
+import { BigNumber, BytesLike, Signer } from 'ethers';
 import { Interface } from '@ethersproject/abi';
 import { TransactionRequest } from '@ethersproject/abstract-provider';
 import { ContractInterface } from '@ethersproject/contracts';
-import { WarpContract } from './Contract';
-import { abiCoder, encode, SolValue } from '../transcode';
+import { Contract } from './Contract';
+import { encode, SolValue } from '../transcode';
 import { readFileSync } from 'fs';
-import { WarpSigner } from './Signer';
 import { benchmark, getContractsToDeclare } from '../utils';
 import { getDevnetProvider } from '../provider';
 import { ethTopicToEvent } from '../eventRegistry';
@@ -23,13 +22,14 @@ export class ContractFactory {
   constructor(
     private starknetContractFactory: StarknetContractFactory,
     ifc: Interface,
-    public signer: Signer,
+    public signer: Account,
     public pathToCompiledCairo: string,
     public contractName: string,
   ) {
     this.interface = ifc;
     this.pathToCairoFile = `${this.pathToCompiledCairo.slice(0, -'_compiled.json'.length)}.cairo`;
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     Object.entries(this.interface.events).forEach(([_, eventFragment]) => {
       const eventName = eventFragment.name;
       const ethTopic = warpEventCanonicalSignaturehash(
@@ -38,9 +38,6 @@ export class ContractFactory {
       );
       ethTopicToEvent[ethTopic] = eventFragment;
     });
-
-    // @ts-ignore
-    this.interface._abiCoder = abiCoder;
   }
 
   // @TODO: Future; rename to populateTransaction?
@@ -49,7 +46,7 @@ export class ContractFactory {
     throw new Error('Not implemented yet');
   }
 
-  async deploy(...args: Array<SolValue>): Promise<EthersContract> {
+  async deploy(...args: Array<SolValue>): Promise<Contract> {
     await Promise.all(
       Object.entries(getContractsToDeclare(this.pathToCairoFile)).map(
         async ([name, expected_hash]) => {
@@ -86,7 +83,7 @@ export class ContractFactory {
 
     const inputs = encode(this.interface.deploy.inputs, args);
     const starknetContract = await this.starknetContractFactory.deploy(inputs);
-    const contract = new WarpContract(
+    const contract = new Contract(
       starknetContract,
       this.starknetContractFactory,
       this.signer,
@@ -96,9 +93,9 @@ export class ContractFactory {
     return contract;
   }
 
-  attach(address: string): EthersContract {
+  attach(address: string): Contract {
     const starknetContract = this.starknetContractFactory.attach(address);
-    const contract = new WarpContract(
+    const contract = new Contract(
       starknetContract,
       this.starknetContractFactory,
       this.signer,
@@ -108,12 +105,9 @@ export class ContractFactory {
     return contract;
   }
 
-  connect(account: WarpSigner): ContractFactory {
+  connect(account: Account): ContractFactory {
     // @ts-ignore Types are borked. Doesn't get ethers is a member
-    const connectedFactory = globalHRE.ethers.getContractFactory(
-      this.contractName,
-      account.starkNetSigner,
-    );
+    const connectedFactory = globalHRE.ethers.getContractFactory(this.contractName, account);
     return new ContractFactory(
       connectedFactory,
       this.interface,
@@ -145,7 +139,7 @@ export class ContractFactory {
     contractInterface: ContractInterface,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     signer?: Signer,
-  ): EthersContract {
+  ): Contract {
     throw new Error('getContract not supported');
   }
 }
