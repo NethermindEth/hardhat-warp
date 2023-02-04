@@ -1,6 +1,6 @@
 {
   "name": "@nethermindeth/hardhat-warp",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "description": "Hardhat plugin for the Warp transpiler",
   "main": "dist/index.js",
   "author": "Nethermind",
