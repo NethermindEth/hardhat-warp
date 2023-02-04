@@ -1,6 +1,6 @@
 {
   "name": "@nethermindeth/hardhat-warp",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "description": "Hardhat plugin for the Warp transpiler",
   "main": "dist/index.js",
   "author": "Nethermind",
@@ -8,7 +8,7 @@
     "dist",
     "script"
   ],
-  "devDependencies": {
+  "dependencies": {
     "@nethermindeth/warp": "^2.4.4",
     "@shardlabs/starknet-hardhat-plugin": "^0.6.6",
     "@typechain/hardhat": "^6.1.5",
