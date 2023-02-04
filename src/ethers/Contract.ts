@@ -30,7 +30,6 @@ import {
   TransactionReceipt,
 } from '@ethersproject/abstract-provider';
 import { abiCoder, decode, decodeEvents, decode_, encode, SolValue } from '../transcode';
-import { FIELD_PRIME } from 'starknet/dist/constants';
 import { benchmark, normalizeAddress } from '../utils';
 import { WarpSigner } from './Signer';
 import { getDevnetPort, getDevnetProvider } from '../provider';
@@ -38,6 +37,7 @@ import { WarpError } from './Error';
 import { ethTopicToEvent } from '../eventRegistry';
 import { devnet } from '../devnet';
 import { decodeEventLog } from '@nethermindeth/warp';
+import { FIELD_PRIME } from '../constants';
 
 const ASSERT_ERRORS = ['An ASSERT_EQ instruction failed', 'AssertionError:'];
 
@@ -266,7 +266,11 @@ export class WarpContract extends EthersContract {
 
   private parseResponse(returnTypes: ParamType[] | undefined, result: string[]) {
     if (returnTypes === undefined) return [];
-    return decode(returnTypes, result);
+
+    // Results changed shape recently and are now always lists with the length of
+    // the number of felts contained in them as the first element.
+    // We need to drop the length prefix
+    return decode(returnTypes, result.slice(1));
   }
 
   private solidityCairoRemap() {
@@ -289,6 +293,9 @@ export class WarpContract extends EthersContract {
     if (txStatus.tx_status === 'REJECTED') {
       throw new WarpError(txStatus.tx_failure_reason?.error_message || '');
     }
+    if (txTrace.function_invocation === undefined) {
+      throw new Error('Function invocation not found');
+    }
     const txBlock = await this.sequencerProvider.getBlock(txStatus.block_hash);
     const latestBlock = await this.sequencerProvider.getBlock();
     const chainId = parseInt(await this.sequencerProvider.getChainId(), 16);
@@ -310,6 +317,9 @@ export class WarpContract extends EthersContract {
         const txStatus = await this.sequencerProvider.getTransactionStatus(transaction_hash);
         const txBlock = await this.sequencerProvider.getBlock(txStatus.block_hash);
         const txTrace = await this.sequencerProvider.getTransactionTrace(transaction_hash);
+        if (txTrace.function_invocation === undefined) {
+          throw new Error('Function invocation not found');
+        }
         const txReceipt = (await this.sequencerProvider.getTransactionReceipt(
           transaction_hash,
         )) as InvokeTransactionReceiptResponse;
@@ -351,12 +361,13 @@ export class WarpContract extends EthersContract {
   }
 
   private starknetEventsToEthEvents(
-    events: Array<StarkEvent>,
+    events: Array<StarkEvent> | undefined,
     blockNumber: number,
     blockHash: string,
     transactionIndex: number,
     transactionHash: string,
   ): Event[] {
+    if (events === undefined) return [];
     return events
       .filter((e) => !this.ignoredTopics.has(e.keys[0]))
       .map((e, i): Event => {

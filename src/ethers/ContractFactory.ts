@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { Account, Contract, ContractFactory as StarknetContractFactory, json } from 'starknet';
+import { ContractFactory as StarknetContractFactory, json } from 'starknet';
 import { BigNumber, BytesLike, Signer, Contract as EthersContract } from 'ethers';
 import { Interface } from '@ethersproject/abi';
 import { TransactionRequest } from '@ethersproject/abstract-provider';
@@ -12,9 +12,7 @@ import { benchmark, getContractsToDeclare } from '../utils';
 import { getDevnetProvider } from '../provider';
 import { ethTopicToEvent } from '../eventRegistry';
 import { globalHRE } from '../hardhat/runtime-environment';
-import { warpEventCanonicalSignaturehash } from '@nethermindeth/warp';
-
-const UDC_ADDRESS = '0x41a78e741e5af2fec34b695679bc6891742439f7afb8484ecd7766661ad02bf';
+import { callClassHashScript, warpEventCanonicalSignaturehash } from '@nethermindeth/warp';
 
 export class ContractFactory {
   readonly interface: Interface;
@@ -60,10 +58,10 @@ export class ContractFactory {
             readFileSync(path.join('artifacts', compiledContractPath), 'utf8'),
           );
 
-          const declareResponse =
-            await this.starknetContractFactory.providerOrAccount.declareContract({
-              contract: compiledContract,
-            });
+          const declareResponse = await this.starknetContractFactory.account.declare({
+            contract: compiledContract,
+            classHash: callClassHashScript(compiledContractPath),
+          });
 
           if (declareResponse.class_hash !== expected_hash) {
             throw new Error(
@@ -74,7 +72,7 @@ export class ContractFactory {
             );
           }
 
-          await this.starknetContractFactory.providerOrAccount.waitForTransaction(
+          await this.starknetContractFactory.account.waitForTransaction(
             declareResponse.transaction_hash,
           );
 
@@ -86,46 +84,8 @@ export class ContractFactory {
       ),
     );
 
-    // Declare this contract
-    const declareResponse = await this.starknetContractFactory.providerOrAccount.declareContract({
-      contract: this.starknetContractFactory.compiledContract,
-    });
-    await this.starknetContractFactory.providerOrAccount.waitForTransaction(
-      declareResponse.transaction_hash,
-    );
-    const declareTrace = await this.sequencerProvider.getTransactionTrace(
-      declareResponse.transaction_hash,
-    );
-    benchmark(this.pathToCompiledCairo, 'DECLARE', declareTrace);
-
     const inputs = encode(this.interface.deploy.inputs, args);
-
-    const deployInputs = [
-      declareResponse.class_hash,
-      // using random salt, so that that the computed address is different each
-      // time and starknet-devnet doesn't complain
-      Math.floor(Math.random() * 1000000).toString(),
-      inputs.length.toString(),
-      ...inputs,
-      '0',
-    ];
-    if (!(this.starknetContractFactory.providerOrAccount instanceof Account))
-      throw new Error('Expect contract provider to be account');
-    const { transaction_hash: deployTxHash } =
-      await this.starknetContractFactory.providerOrAccount.execute({
-        contractAddress: this.starknetContractFactory.providerOrAccount.address,
-        calldata: deployInputs,
-        entrypoint: 'deploy_contract',
-      });
-    await this.starknetContractFactory.providerOrAccount.waitForTransaction(deployTxHash);
-    const txTrace = await this.sequencerProvider.getTransactionTrace(deployTxHash);
-    benchmark(this.pathToCompiledCairo, 'constructor', txTrace);
-    const deployAddress = txTrace.function_invocation.result[0];
-    const starknetContract = new Contract(
-      this.starknetContractFactory.abi,
-      deployAddress,
-      this.starknetContractFactory.providerOrAccount,
-    );
+    const starknetContract = await this.starknetContractFactory.deploy(inputs);
     const contract = new WarpContract(
       starknetContract,
       this.starknetContractFactory,
