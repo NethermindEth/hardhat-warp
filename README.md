@@ -23,15 +23,14 @@ Install hardhat-warp
 yarn add --dev @nethermindeth/harhdhat-warp
 ```
 
-You will need to have python env with an instance of `starknet-devnet` and
-`cairo-lang`. See instructions for setting up `cairo-lang`
-[here](https://cairo-lang.org/docs/quickstart.html) and `starknet-devnet`
+You will need to have python env with an instance of `starknet-devnet`.
+See instructions for setting up `starknet-devnet`
 [here](https://shard-labs.github.io/starknet-devnet/docs/intro).
 
 ```
 python3.9 -m venv venv
 source venv/bin/activate
-pip install cairo-lang starknet-devnet
+pip install starknet-devnet
 ```
 
 We will support
