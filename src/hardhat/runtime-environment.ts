@@ -1,7 +1,6 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/src/signers';
 import { extendConfig, extendEnvironment } from 'hardhat/config';
 import { ethers } from 'ethers';
-import { ContractFactory as StarkNetContractFactory } from 'starknet';
+import { Account, ContractFactory as StarkNetContractFactory } from 'starknet';
 
 import {
   getDefaultAccount,
@@ -9,18 +8,18 @@ import {
   getDevNetPreloadedAccounts,
   getDevnetProvider,
 } from '../provider';
-import { WarpSigner } from '../ethers/Signer';
 import { ContractFactory } from '../ethers/ContractFactory';
 import '../type-extensions';
 import { devnet } from '../devnet';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { Artifacts } from './artifacts';
 import { Interface } from 'ethers/lib/utils';
+import { callClassHashScript } from '@nethermindeth/warp';
 
 export let globalHRE: HardhatRuntimeEnvironment;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Fixture<T> = (signers: WarpSigner[], provider: any) => Promise<T>;
+type Fixture<T> = (signers: Account[], provider: any) => Promise<T>;
 
 interface Snapshot<T> {
   fixture: Fixture<T>;
@@ -28,7 +27,7 @@ interface Snapshot<T> {
   id: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   provider: any;
-  signers: WarpSigner[];
+  signers: Account[];
 }
 
 extendConfig((config) => {
@@ -45,21 +44,23 @@ extendEnvironment((hre) => {
   globalHRE = hre;
 
   // @ts-ignore we don't support some of the overloads of getContractFactory
-  hre.ethers.getContractFactory = async (name: string, signerOrOptions?: ethers.Signer) => {
+  // We assume signerOrOptions is a starknet account
+  hre.ethers.getContractFactory = async (name: string, signerOrOptions?: Account) => {
     if (signerOrOptions === undefined) {
-      signerOrOptions = new WarpSigner(await getDefaultAccount());
-    } else if (signerOrOptions instanceof ethers.Signer) {
+      signerOrOptions = await getDefaultAccount();
+    } else if (signerOrOptions instanceof Account) {
       // pass - we're happy
     } else {
       throw new Error('Factory options on getContractFactory not supported');
     }
 
-    const solidityAbi = await (hre.artifacts as Artifacts).getArtifactAbi(name);
-    const artifact = await (hre.artifacts as Artifacts).getArtifact(name);
-    const cairoFile = await (hre.artifacts as Artifacts).getArtifactPath(name);
+    const solidityAbi = await (hre.artifacts as unknown as Artifacts).getArtifactAbi(name);
+    const artifact = await (hre.artifacts as unknown as Artifacts).getArtifact(name);
+    const cairoFile = await (hre.artifacts as unknown as Artifacts).getArtifactPath(name);
     const starknetContractFactory = new StarkNetContractFactory(
       artifact,
-      (signerOrOptions as WarpSigner).starkNetSigner,
+      callClassHashScript(cairoFile),
+      signerOrOptions,
       artifact.abi,
     );
     return Promise.resolve(
@@ -69,7 +70,7 @@ extendEnvironment((hre) => {
         signerOrOptions,
         cairoFile,
         name,
-      ) as ethers.ContractFactory,
+      ) as unknown as ethers.ContractFactory, // Here be dragons: we're abusing the type system to get around the fact that we don't support everything in ethers' ContractFactory
     );
   };
 
@@ -82,12 +83,7 @@ extendEnvironment((hre) => {
 
   // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
   hre.ethers.getSigners = async () => {
-    const starknetSigners = await getDevNetPreloadedAccounts(getDevnetProvider());
-
-    // We use the first signer as the default account so give the user fresh ones
-    const warpSigners = starknetSigners.map((starknetSigner) => new WarpSigner(starknetSigner));
-
-    return Promise.resolve(warpSigners);
+    return getDevNetPreloadedAccounts(getDevnetProvider());
   };
 
   // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
@@ -95,10 +91,8 @@ extendEnvironment((hre) => {
     if (address) throw new Error('Signers at exact address not supported yet');
     const [starknetSigner] = await getDevNetPreloadedAccounts(getDevnetProvider());
 
-    const warpSigner = new WarpSigner(starknetSigner);
-
     // @ts-ignore type abuse
-    return Promise.resolve(warpSigner as SignerWithAddress);
+    return Promise.resolve(starknetSigner);
   };
 
   // @ts-ignore hre doesn't contain the ethers type information which is set by hardhat
@@ -128,7 +122,7 @@ extendEnvironment((hre) => {
   };
 
   const createFixtureLoader = (
-    signers: WarpSigner[],
+    signers: Account[],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     provider: any,
   ) => {

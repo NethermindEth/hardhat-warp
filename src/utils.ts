@@ -2,7 +2,7 @@ import { NomicLabsHardhatPluginError } from 'hardhat/plugins';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { GetTransactionTraceResponse } from 'starknet/dist/types/api';
+import { GetTransactionTraceResponse } from 'starknet';
 import { globalHRE } from './hardhat/runtime-environment';
 import { getDevnetPort } from './provider';
 

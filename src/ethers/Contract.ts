@@ -9,10 +9,8 @@ import {
 } from 'starknet';
 import {
   BigNumberish,
-  Contract as EthersContract,
   ContractFunction,
   PopulatedTransaction,
-  Signer,
   Event,
   BigNumber,
   ContractTransaction,
@@ -23,21 +21,19 @@ import {
   BlockTag,
   EventFilter,
   Listener,
-  Provider,
   TransactionRequest,
   TransactionResponse,
   Block,
   TransactionReceipt,
 } from '@ethersproject/abstract-provider';
 import { abiCoder, decode, decodeEvents, decode_, encode, SolValue } from '../transcode';
-import { FIELD_PRIME } from 'starknet/dist/constants';
 import { benchmark, normalizeAddress } from '../utils';
-import { WarpSigner } from './Signer';
 import { getDevnetPort, getDevnetProvider } from '../provider';
 import { WarpError } from './Error';
 import { ethTopicToEvent } from '../eventRegistry';
 import { devnet } from '../devnet';
 import { decodeEventLog } from '@nethermindeth/warp';
+import { FIELD_PRIME } from '../constants';
 
 const ASSERT_ERRORS = ['An ASSERT_EQ instruction failed', 'AssertionError:'];
 
@@ -47,8 +43,10 @@ interface CairoContractTransaction extends ContractTransaction {
   wait(confirmations?: number): Promise<CairoContractReceipt>;
 }
 
-export class WarpContract extends EthersContract {
+export class Contract /* extends EthersContract */ {
   readonly functions: { [name: string]: ContractFunction };
+  public address: string;
+  public signerOrProvider: Account;
 
   readonly callStatic: { [name: string]: ContractFunction };
   readonly estimateGas: { [name: string]: ContractFunction<BigNumber> };
@@ -59,6 +57,9 @@ export class WarpContract extends EthersContract {
   // This will always be an address. This will only differ from
   // address if an ENS name was used in the constructor
   readonly resolvedAddress: Promise<string>;
+
+  // Defined in the original ethers
+  readonly _deployedPromise: Promise<Contract>;
 
   private sequencerProvider = getDevnetProvider();
   public interface: Interface;
@@ -71,11 +72,10 @@ export class WarpContract extends EthersContract {
   constructor(
     private starknetContract: StarknetContract,
     private starknetContractFactory: StarknetContractFactory,
-    public signer: Signer,
+    public signer: Account,
     ifc: Interface,
     private pathToCairoFile: string,
   ) {
-    super(normalizeAddress(starknetContract.address), ifc, signer);
     this.interface = ifc;
     this.functions = starknetContract.functions;
     this.callStatic = starknetContract.callStatic;
@@ -84,9 +84,8 @@ export class WarpContract extends EthersContract {
     this.resolvedAddress = Promise.resolve(starknetContract.address);
     this._deployedPromise = Promise.resolve(this);
     this.solidityCairoRemap();
-
-    // @ts-ignore
-    this.interface._abiCoder = abiCoder;
+    this.address = starknetContract.address;
+    this.signerOrProvider = signer;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -95,12 +94,12 @@ export class WarpContract extends EthersContract {
   }
 
   // @TODO: Allow timeout?
-  deployed(): Promise<EthersContract> {
+  deployed(): Promise<Contract> {
     return Promise.resolve(this);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _deployed(blockTag?: BlockTag): Promise<EthersContract> {
+  _deployed(blockTag?: BlockTag): Promise<Contract> {
     return Promise.resolve(this);
   }
 
@@ -110,22 +109,21 @@ export class WarpContract extends EthersContract {
   }
 
   // Reconnect to a different signer or provider
-  connect(signerOrProvider: Signer | Provider | string): EthersContract {
-    const warpSigner = signerOrProvider as WarpSigner;
-    const connected = new WarpContract(
+  connect(signerOrProvider: Account): Contract {
+    const connected = new Contract(
       this.starknetContractFactory.attach(this.address),
       this.starknetContractFactory,
       this.signerOrProvider,
       this.interface,
       this.pathToCairoFile,
     );
-    connected.starknetContract.connect(warpSigner.starkNetSigner);
+    connected.starknetContract.connect(signerOrProvider);
     return connected;
   }
 
   // Re-attach to a different on-chain instance of this contract
-  attach(addressOrName: string): EthersContract {
-    const attached = new WarpContract(
+  attach(addressOrName: string): Contract {
+    const attached = new Contract(
       this.starknetContractFactory.attach(addressOrName),
       this.starknetContractFactory,
       this.signer,
@@ -266,7 +264,11 @@ export class WarpContract extends EthersContract {
 
   private parseResponse(returnTypes: ParamType[] | undefined, result: string[]) {
     if (returnTypes === undefined) return [];
-    return decode(returnTypes, result);
+
+    // Results changed shape recently and are now always lists with the length of
+    // the number of felts contained in them as the first element.
+    // We need to drop the length prefix
+    return decode(returnTypes, result.slice(1));
   }
 
   private solidityCairoRemap() {
@@ -289,6 +291,9 @@ export class WarpContract extends EthersContract {
     if (txStatus.tx_status === 'REJECTED') {
       throw new WarpError(txStatus.tx_failure_reason?.error_message || '');
     }
+    if (txTrace.function_invocation === undefined) {
+      throw new Error('Function invocation not found');
+    }
     const txBlock = await this.sequencerProvider.getBlock(txStatus.block_hash);
     const latestBlock = await this.sequencerProvider.getBlock();
     const chainId = parseInt(await this.sequencerProvider.getChainId(), 16);
@@ -310,6 +315,9 @@ export class WarpContract extends EthersContract {
         const txStatus = await this.sequencerProvider.getTransactionStatus(transaction_hash);
         const txBlock = await this.sequencerProvider.getBlock(txStatus.block_hash);
         const txTrace = await this.sequencerProvider.getTransactionTrace(transaction_hash);
+        if (txTrace.function_invocation === undefined) {
+          throw new Error('Function invocation not found');
+        }
         const txReceipt = (await this.sequencerProvider.getTransactionReceipt(
           transaction_hash,
         )) as InvokeTransactionReceiptResponse;
@@ -351,12 +359,13 @@ export class WarpContract extends EthersContract {
   }
 
   private starknetEventsToEthEvents(
-    events: Array<StarkEvent>,
+    events: Array<StarkEvent> | undefined,
     blockNumber: number,
     blockHash: string,
     transactionIndex: number,
     transactionHash: string,
   ): Event[] {
+    if (events === undefined) return [];
     return events
       .filter((e) => !this.ignoredTopics.has(e.keys[0]))
       .map((e, i): Event => {
