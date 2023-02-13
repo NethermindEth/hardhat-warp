@@ -14,30 +14,23 @@ If you're setting up a new project you can use [this repository](https://github.
 
 The project must use `@typechain/hardhat`, and `@typechain/ethers-v5 ^10.1.1`:
 
-```
+```bash
 yarn add --dev @typechain/hardhat @typechain/ethers-v5
 ```
 
 Install the required dependencies in the hardhat project:
 
-```
-yarn add --dev @nethermindeth/harhdhat-warp @shardlabs/starknet-hardhat-plugin
+```bash
+yarn add --dev @nethermindeth/hardhat-warp @shardlabs/starknet-hardhat-plugin
 ```
 
-Next you will need our modified version of the `starknet-devnet`; configure a
-python virtual environment with `python3.9` and install our devnet to it:
-
-```
-python3.9 -m venv venv
-source venv/bin/activate
-pip install git+https://github.com/swapnilraj/starknet-devnet
-```
+Next you will need to ensure that the latest version of [`starknet-devnet`](https://github.com/Shard-Labs/starknet-devnet) is installed.
 
 ## Configuring hardhat
 
 In `hardhat.config.ts`, add the following:
 
-```
+```js
 starknet: {
   network: "integrated-devnet",
 }
@@ -53,43 +46,33 @@ networks: {
 },
 ```
 
-Add the following two lines **BEFORE** any hardhat related imports in your
-`hardhat.config.ts`:
+Add the `harhdhat-warp` import **AFTER** for the hardhat related imports:
 
-```typescript
-import { freedom } from '@nethermindeth/hardhat-warp/src/index_before';
-freedom(require);
-```
-
-Add the `harhdhat-warp` import **AFTER** all the hardhat related imports:
-
-```
-import 'hardhat-warp';
+```js
+import '@nethermindeth/hardhat-warp';
 ```
 
 Here's an example configuration from the [UniStark repo](https://github.com/NethermindEth/UniStark/blob/main/hardhat.config.ts#L1):
 
-```
-import 'hardhat-typechain'
-import {freedom} from '@nethermindeth/hardhat-warp/src/index_before'
-freedom(require)
-import '@nomiclabs/hardhat-ethers'
-import '@nomiclabs/hardhat-waffle'
-import '@nomiclabs/hardhat-etherscan'
-import '@nethermindeth/hardhat-warp'
+```js
+import 'hardhat-typechain';
+import '@nomiclabs/hardhat-ethers';
+import '@nomiclabs/hardhat-waffle';
+import '@nomiclabs/hardhat-etherscan';
+import '@nethermindeth/hardhat-warp';
 ```
 
 Make the required changes for compatibility with StarkNet, you can checkout some commonly required changes [here](https://nethermindeth.github.io/warp/docs/get_around_unsupported_features).
 
 And then simply
 
-```
+```bash
 yarn hardhat compile
 ```
 
 or
 
-```
+```bash
 yarn hardhat test
 ```
 
