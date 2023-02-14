@@ -45,7 +45,7 @@ import '@nethermindeth/hardhat-warp';
 
 Then add the following to run on a local testnet:
 
-```
+```js
 starknet: {
   network: "integrated-devnet",
 }
@@ -77,7 +77,7 @@ some commonly required changes
 
 ## Using hardhat warp
 
-```
+```bash
 yarn hardhat test
 ```
 

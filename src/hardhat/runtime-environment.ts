@@ -1,3 +1,4 @@
+import '@nomicfoundation/hardhat-toolbox';
 import { extendConfig, extendEnvironment } from 'hardhat/config';
 import { ethers } from 'ethers';
 import { Account, ContractFactory as StarkNetContractFactory } from 'starknet';
