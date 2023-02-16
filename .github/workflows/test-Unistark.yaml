@@ -31,7 +31,6 @@ jobs:
       - name: Install dependencies
         run: |
           yarn
-          pip3 install cairo-lang starknet-devnet
 
       - name: Setup UniStark & it's dependencies
         run: |
@@ -43,9 +42,8 @@ jobs:
       - name: Compile UniStark & run tests
         run: |
           cd tests/UniStark
-          git branch
-          cat tsconfig.json
           yarn hardhat warp-install
+          source ./bin/activate
           echo $VIRTUAL_ENV
           yarn hardhat compile
           yarn hardhat test
