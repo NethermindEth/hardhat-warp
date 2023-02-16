@@ -43,6 +43,8 @@ jobs:
       - name: Compile UniStark & run tests
         run: |
           cd tests/UniStark
+          git branch
+          cat tsconfig.json
           yarn hardhat warp-install
           echo $VIRTUAL_ENV
           yarn hardhat compile
