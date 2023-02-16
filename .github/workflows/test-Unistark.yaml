@@ -42,8 +42,9 @@ jobs:
       - name: Compile UniStark & run tests
         run: |
           cd tests/UniStark
-          python3 -m venv . && pip3 install cairo-lang starknet-devnet
-          source ./bin/activate
+          python3 -m venv venv
+          source ./venv/bin/activate
+          pip3 install cairo-lang starknet-devnet
           echo $VIRTUAL_ENV
           yarn hardhat compile
           yarn hardhat test
