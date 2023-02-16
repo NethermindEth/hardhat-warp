@@ -1,0 +1,3 @@
+[submodule "tests/UniStark"]
+	path = tests/UniStark
+	url = https://github.com/NethermindEth/UniStark.git

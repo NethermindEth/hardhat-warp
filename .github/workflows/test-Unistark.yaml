@@ -1,0 +1,49 @@
+name: UniStark
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  Compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Use Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '18.x'
+          cache: 'yarn'
+
+      - name: Use Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          yarn
+          pip3 install cairo-lang starknet-devnet
+
+      - name: Setup UniStark & it's dependencies
+        run: |
+          git submodule update --init --recursive
+          cd tests/UniStark
+          git submodule update --init --recursive
+          yarn
+
+      - name: Compile UniStark & run tests
+        run: |
+          cd tests/UniStark
+          yarn hardhat warp-install
+          echo $VIRTUAL_ENV
+          yarn hardhat compile
+          yarn hardhat test
