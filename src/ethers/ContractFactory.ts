@@ -57,7 +57,7 @@ export class ContractFactory {
 
           const declareResponse = await this.starknetContractFactory.account.declare({
             contract: compiledContract,
-            classHash: callClassHashScript(compiledContractPath),
+            classHash: callClassHashScript(path.join('artifacts', compiledContractPath)),
           });
 
           if (declareResponse.class_hash !== expected_hash) {
